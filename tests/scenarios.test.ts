@@ -4,7 +4,7 @@ import { beast, beginMood, computeAlerts, raid, trade } from '../src/sim/events'
 import { Game, MOON_DAYS } from '../src/sim/game';
 import { birth, issueMandate, maybeMarry, petsAdopt } from '../src/sim/civics';
 import { megabeast, necroSiege, snatcher, werebeast } from '../src/sim/night';
-import { DG, canPlace, explainTask, placeBuilding, toggleLever, tryDesig } from '../src/sim/jobs';
+import { DG, canPlace, explainTask, placeBuilding, toggleLever, tryBill, tryDesig } from '../src/sim/jobs';
 import { TERRITORY, explainUnit, fallDamage, killUnit, lineOfSight } from '../src/sim/life';
 import { optionsAt, order, setDraft } from '../src/sim/orders';
 import { step } from '../src/sim/sim';
@@ -558,6 +558,28 @@ describe('ranged combat', () => {
 });
 
 describe('clothing', () => {
+  test('the whole chain: pig tails are woven into cloth, sewn into an outfit, and put on', () => {
+    const g = flatGame();
+    const u = dwarf(g, 40, 40, ['craft']);
+    u.wear = 10;
+    g.spawnItem('drink', MAT.oak, cell(41, 41), 5, { sub: 'dwarven ale' });
+    g.spawnItem('plant', MAT.none, cell(41, 42), 1, { sub: 'pig_tail' });
+    const loom = built(g, 'loom', 44, 39);
+    const clothier = built(g, 'clothier', 44, 44);
+    loom.bills.push({ recipe: 'weave', mode: 'count', n: 1, paused: false });
+    clothier.bills.push({ recipe: 'clothes', mode: 'count', n: 1, paused: false });
+
+    // nothing to sew until the loom has run: the order's panel says what it is waiting for
+    run(g, 30);
+    expect(explainTask(g, 'craft', (d) => tryBill(g, d, clothier, 0))).toMatch(/needs cloth: none in the fortress/);
+
+    run(g, 4000, () => u.wear === 100);
+    expect(u.wear).toBe(100);
+    // one plant made two cloth; one was sewn and worn, one is left
+    expect(g.count((i) => i.type === 'cloth')).toBe(1);
+    expect(g.count((i) => i.type === 'clothes')).toBe(0);
+  });
+
   test('a fortress going threadbare gets an alert that names the next step', () => {
     const g = flatGame();
     const ds = [0, 1, 2, 3].map((k) => dwarf(g, 40 + k, 40, []));
