@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { BUILDINGS, MAT, PLANT, T, TICKS_DAY, TICKS_YEAR } from '../src/sim/defs';
+import { BUILDINGS, MAT, PLANT, SKILLS, T, TICKS_DAY, TICKS_YEAR } from '../src/sim/defs';
 import { beast, beginMood, computeAlerts, raid, trade } from '../src/sim/events';
 import { Game, MOON_DAYS } from '../src/sim/game';
 import { birth, issueMandate, maybeMarry, petsAdopt } from '../src/sim/civics';
@@ -9,6 +9,7 @@ import { TERRITORY, explainUnit, fallDamage, killUnit, lineOfSight } from '../sr
 import { optionsAt, order, setDraft } from '../src/sim/orders';
 import { step } from '../src/sim/sim';
 import { WH, dist } from '../src/sim/world';
+import { unitPanel } from '../src/ui/panels';
 import { built, cell, dwarf, flatGame, give, room, run } from './helpers';
 
 const alertText = (g: Game) => computeAlerts(g).map((a) => `${a.text}: ${a.detail}`).join('\n');
@@ -1495,6 +1496,19 @@ test('the fortress keeps a history, and masons engrave scenes from it', () => {
   expect(g2.history[0].text).toBe('Urist Testbeard wrestled a carp and lost.');
   expect(g2.engravings.get(wall)).toBe(text);
   expect(g2.dateString(g2.history[0].tick, true)).toBe('1st Granite 250');
+});
+
+test('the dwarf panel renders whatever a dwarf is skilled at', () => {
+  const g = flatGame();
+  // a migrant can arrive skilled at anything, including shooting, which is a skill but not a labor
+  for (const skill of SKILLS) {
+    const u = dwarf(g, 40, 40, []);
+    u.skills[skill] = 500;
+    expect(() => unitPanel(g, u, 1), `a dwarf skilled at ${skill}`).not.toThrow();
+  }
+  const archer = dwarf(g, 41, 41, []);
+  archer.skills.shoot = 500;
+  expect(unitPanel(g, archer, 1)).toMatch(/Proficient marksdwarf/);
 });
 
 test('save and load round-trips a running fortress', () => {
