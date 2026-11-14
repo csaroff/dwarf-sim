@@ -558,6 +558,23 @@ describe('ranged combat', () => {
 });
 
 describe('clothing', () => {
+  test('a fortress going threadbare gets an alert that names the next step', () => {
+    const g = flatGame();
+    const ds = [0, 1, 2, 3].map((k) => dwarf(g, 40 + k, 40, []));
+    for (const d of ds) d.wear = 5;
+    // nothing at all: build a clothier
+    expect(alertText(g)).toMatch(/4 need clothes.*Build a Clothier.*Loom weaves from pig tails/s);
+    // a clothier but nothing to sew with
+    built(g, 'clothier', 50, 50);
+    expect(alertText(g)).toMatch(/You have a Clothier but no cloth or leather/);
+    // cloth in stock: just add the order
+    g.spawnItem('cloth', MAT.cloth, cell(45, 45), 2);
+    expect(alertText(g)).toMatch(/Add a "Sew clothes" order/);
+    // clothes on the shelf: no alert, they will fetch them
+    g.spawnItem('clothes', MAT.cloth, cell(46, 45), 1);
+    expect(alertText(g)).not.toMatch(/need clothes/);
+  });
+
   test('clothes wear out; a dwarf in rags fetches a new outfit, and says why if there is none', () => {
     const g = flatGame();
     const u = dwarf(g, 40, 40, []);

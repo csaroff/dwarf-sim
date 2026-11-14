@@ -775,6 +775,13 @@ export function computeAlerts(g: Game): Alert[] {
     }
     if (probs.length) out.push({ id: 'spfull', sev: 'warn', text: 'Stockpiles full', detail: `Items are being left where they lie: ${probs.slice(0, 4).join('; ')}. Make the stockpile bigger or add another (Zones > Stockpile). Food left outside a stockpile rots.` });
   }
+  // ---- clothes wearing out with nothing to replace them
+  const ragged = ds.filter((u) => (u.wear ?? 100) < 25);
+  if (ragged.length >= Math.max(2, pop / 4) && !g.count((i) => i.type === 'clothes')) {
+    const clothier = Array.from(g.buildings.values()).some((b) => (b.type === 'clothier' || b.type === 'leatherworks') && b.built);
+    const stuff = g.count((i) => i.type === 'cloth' || i.type === 'leather');
+    out.push({ id: 'clothes', sev: 'warn', text: `${ragged.length} need clothes`, detail: `${ragged.map(first).slice(0, 5).join(', ')}${ragged.length > 5 ? '…' : ''}: clothes last about 40 days, and theirs are worn out. ${clothier ? (stuff ? 'Add a "Sew clothes" order at the Clothier or Leather Works.' : 'You have a Clothier but no cloth or leather: weave pig tails, rope reed or wool at a Loom, or tan hides at a Tannery.') : 'Build a Clothier (Build > Workshops) and sew clothes from cloth, which a Loom weaves from pig tails, rope reed or wool. Leather from a Tannery works too.'} Caravans also sell outfits.` });
+  }
   // ---- leisure nobody can have
   const restless = ds.filter((u) => (u.fun ?? 0) > 110).length, pious = ds.filter((u) => (u.faith ?? 0) > 110).length;
   if (restless >= Math.max(2, pop / 3) && !g.zonesOf('tavern').length) out.push({ id: 'notavern', sev: 'warn', text: 'No tavern', detail: `${restless} dwarves want somewhere to drink and talk, and are growing unhappy. Mark a room as a Tavern (Zones > Tavern). Tables, chairs and drink close by make it better.` });
