@@ -338,6 +338,23 @@ export const HELP = `<h2><span>How to play</span><button data-a="closemodal">Clo
 3. <b>Zones → Farm</b> on underground soil; pick plump helmets. <b>Build → Workshops → Still</b>, add a "Brew drink" order. <span class="amber">Dwarves need alcohol: without it they slow down, despair and eventually die.</span><br>
 4. Brewing and eating use the same plants: farm enough for both. Carpenter → beds; Mason → tables, chairs, doors, coffins. Place them with <b>Build → Furniture</b>.<br>
 5. Dig deeper for ore, caverns, magma… and whatever is at the bottom.</p>
+<h3>Defence</h3>
+<p>• Mark fighters as <b>Militia</b> (button in a dwarf's panel): they arm themselves from the stockpiles, drill at a <b>Barracks</b> zone and answer raids on their own. Crossbows need bolts and a clear line of sight.<br>
+• <b>B</b> raises the alarm: civilians drop their work and shelter in the <b>Refuge</b> zone until you call it off.<br>
+• <b>Fortifications</b> stop movement but let bolts through. <b>Weapon traps</b> strike everything hostile that crosses them; <b>cage traps</b> catch one creature, which a hunter can then tame. <b>Pressure plates</b> are levers the enemy pulls; link them to <b>upright spikes</b>, bridges, floodgates or doors.<br>
+• Trolls, ogres, forgotten beasts and megabeasts smash locked doors. Walls, raised bridges and traps hold them.</p>
+<h3>Things that go wrong</h3>
+<p>• <b>Cave-ins</b>: rock or floor cut off from everything around it falls. <b>Damp or warm stone</b>: a miner stops before breaking into water or magma; designate again to dig through.<br>
+• <b>Werebeasts</b> come at the full moon (see the moon counter in the top bar). A deep bite curses a dwarf, who then transforms every full moon: lock them in a room alone.<br>
+• <b>Necromancers</b> raise any corpse they can see. Kill the necromancer and its dead collapse. Bury your own dead: left six days, they rise as <b>ghosts</b> until given a coffin or a memorial slab.<br>
+• A migrant may be a <b>vampire</b>: its Food, Thirst and Rest never drop. Select another dwarf and right-click the suspect to accuse.<br>
+• <b>Goblin snatchers</b> carry off children. Kill the goblin before it reaches the map edge.</p>
+<h3>A fortress worth living in</h3>
+<p>• Dwarves want clothes (Clothier), company (<b>Tavern</b> zone) and somewhere to pray (<b>Temple</b> zone). Couples who meet at the tavern marry and have children.<br>
+• At fifteen dwarves the fortress elects a <b>mayor</b>, who wants a decent bedroom and issues mandates: make what is asked within two weeks.<br>
+• Livestock gives milk, wool and eggs; dogs can be trained for war; cats and dogs adopt dwarves.<br>
+• <b>Machines</b>: a windmill or water wheel powers anything touching it through axles and gears. Screw pumps lift water or magma; millstones grind flour. Every machine says whether it is turning, and why not.<br>
+• <b>Legends</b> (<kbd>J</kbd>) records the fortress's history. Masons engrave scenes from it: click an engraved wall.</p>
 <h3>Things you can exploit</h3>
 <p>• A lowering <b>drawbridge</b> obliterates anything underneath it. Anything.<br>• <b>Cage traps</b> catch any hostile, regardless of size.<br>• Water + magma = obsidian. Floodgates + levers = plumbing (and drowning chambers).<br>• Muddy stone floors can be farmed. Magma forges need no fuel. Goblins path through the only open door.</p>
 <h3>Keys</h3>
