@@ -17,6 +17,8 @@ export const SOBER_SICK = TICKS_DAY * 12; // withdrawal starts to kill
 export const STARVE = 250;
 /** how far from its lair a territorial creature will go after someone */
 export const TERRITORY = 14;
+/** ticks between a creature's breath or thrown attacks */
+export const BREATH_CD = 150;
 export const DEHYDRATE = 200;
 
 const first = (u: Unit) => u.name.split(' ')[0];
@@ -268,7 +270,8 @@ export function attack(g: Game, a: Unit, b: Unit) {
 export function shoot(g: Game, a: Unit, b: Unit, r: Ranged) {
   if (a.atkCd > 0 || a.dead || b.dead || b.kind === 'ghost') return;
   const sa = a.isDwarf ? g.skillLevel(a, 'shoot') : a.skill;
-  a.atkCd = Math.max(14, 26 - sa);
+  // a crossbow is reloaded in moments; fire, dust and the like take a long breath to gather
+  a.atkCd = r.ammo ? Math.max(14, 26 - sa) : BREATH_CD;
   const helpless = isHelpless(b);
   onAttacked(g, b, a);
   g.train(a, 'shoot', 4);

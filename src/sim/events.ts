@@ -1,6 +1,6 @@
 // The world acting on the fortress: embark, seasons, migrants, caravans, raids, wildlife,
 // strange moods, the things that live below — and the alert list that tells you what is wrong.
-import { BUILDINGS, CREATURES, CROPS, CreatureDef, creaturesOf, FIRST_NAMES, H, ITEMS, LABOR_NAME, MAT, MATS, PLANT, PLANTS, RECIPES, T, TICKS_DAY, TICKS_SEASON, W, plantOf } from './defs';
+import { BUILDINGS, CREATURES, CROPS, CreatureDef, creaturesOf, FIRST_NAMES, H, ITEMS, LABOR_NAME, MAT, MATS, PLANT, PLANTS, RECIPES, T, TICKS_DAY, TICKS_SEASON, TICKS_YEAR, W, plantOf } from './defs';
 import { Game } from './game';
 import {
   DG_LABOR, DG_NAME, RUN, assign, canWalk, endJob, explainTask, fetch, isJob, needsTending, tryBuild, tryDesig, tryHaul, tryRescue, walk,
@@ -227,7 +227,8 @@ export function beast(g: Game, at?: number): Unit | null {
   if (c < 0) return null;
   const u = g.addUnit('beast', c, 'enemy');
   // it prowls the cavern it woke in, and comes up after the fortress only once that is big enough to draw it
-  if (g.strength() < 25) u.home = c;
+  // (and never in the first year: a young fortress gets to meet it on its own terms, by digging down)
+  if (g.strength() < 25 || g.tick < TICKS_YEAR) u.home = c;
   const [form, shape] = g.rng.pick(BEAST_FORMS);
   const [stuff, colour, armor, hpMul] = g.rng.pick(BEAST_STUFF);
   const [warning, breath] = g.rng.pick(BEAST_POWERS);
