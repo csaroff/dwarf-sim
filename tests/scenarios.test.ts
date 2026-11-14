@@ -617,7 +617,7 @@ test('a crowd of unarmed dwarves mobs a lone goblin instead of dying one by one'
   const gob = g.addUnit('goblin', cell(47, 40), 'enemy');
   g.equip(gob, g.spawnItem('sword', MAT.copper, g.cellOf(gob)), 'weapon');
 
-  run(g, 60);
+  run(g, 20);
   // six against one: they do not run
   expect(crowd.filter((d) => d.job?.type === 'attack').length).toBeGreaterThanOrEqual(4);
   expect(explainUnit(g, crowd.find((d) => d.job?.type === 'attack')!).status).toMatch(/Mobbing the goblin/);

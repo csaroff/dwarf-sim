@@ -335,12 +335,12 @@ export function chase(g: Game, u: Unit, t: Unit): boolean {
   return true;
 }
 /** nearest unit hostile to u within range (reachable ones only if `reach`) */
-export function nearestHostile(g: Game, u: Unit, range: number, reach = true): Unit | null {
+export function nearestHostile(g: Game, u: Unit, range: number, reach = true, ok?: (o: Unit) => boolean): Unit | null {
   const here = g.cellOf(u);
   const ranged = reach ? rangedOf(g, u) : null;
   let best: Unit | null = null, bd = range + 0.5;
   for (const o of g.units.values()) {
-    if (!g.hostile(u, o)) continue;
+    if (!g.hostile(u, o) || (ok && !ok(o))) continue;
     if (Math.abs(o.z - u.z) > 2) continue;
     const d = cheb(here, g.cellOf(o)) + Math.abs(o.z - u.z) * 2;
     if (d >= bd) continue;
@@ -566,6 +566,26 @@ function slowTick(g: Game, u: Unit) {
   }
 }
 
+/**
+ * Would the dwarves around u win by sheer numbers? True when the enemies nearby are all about dwarf-sized
+ * and there are at least four able dwarves for each of them. Nobody mobs a troll, or a friend gone mad.
+ */
+function mobOdds(g: Game, u: Unit, threat: Unit): boolean {
+  if (threat.isDwarf || !g.hostile(u, threat)) return false;
+  const tc = g.cellOf(threat), here = g.cellOf(u);
+  let foes = 0, friends = 0;
+  for (const o of g.units.values()) {
+    if (o.dead || o.state === 'caged') continue;
+    if (o.isDwarf && o.faction === 'fort' && !o.state) {
+      if (!o.downSince && Math.abs(o.z - u.z) <= 1 && cheb(here, g.cellOf(o)) <= 8) friends++;
+    } else if (g.hostile(u, o) && Math.abs(o.z - threat.z) <= 1 && cheb(tc, g.cellOf(o)) <= 10) {
+      if (CREATURES[o.kind].size > 1.3 || rangedOf(g, o)) return false;
+      foes++;
+    }
+  }
+  return foes > 0 && friends >= foes * 4;
+}
+
 /** A drafted dwarf with an empty weapon / armor slot goes and grabs the best free piece. */
 function gearUp(g: Game, u: Unit): Job | null {
   const here = g.cellOf(u);
@@ -621,14 +641,15 @@ function decide(g: Game, u: Unit) {
   }
   // the militia answers the alarm without being told: raiders and thieves anywhere near, not things minding their own caves
   if (u.militia && !(j && j.forced)) {
-    let foe = nearestHostile(g, u, 30);
+    // ...and never into a lair: a beast keeping to its own cave is left there
+    let foe = nearestHostile(g, u, 30, true, (o) => o.home === undefined || o.isDwarf);
     if (!foe) {
       for (const o of g.units.values()) {
         if (o.faction !== 'wild' || o.dead || !o.target || CREATURES[o.kind].water) continue;
         if (g.units.get(o.target)?.faction === 'fort' && dist(here, g.cellOf(o)) < 30 && g.w.canReach(here, g.cellOf(o), true)) foe = o;
       }
     }
-    if (foe && (foe.faction === 'wild' || foe.home === undefined || foe.target)) {
+    if (foe) {
       if (!j || j.type !== 'attack') assign(g, u, mkJob('attack', `Answering the alarm: fighting ${g.unitName(foe)}`, g.cellOf(foe), { u: foe.id, data: foe.faction === 'wild' ? 2 : undefined }));
       return;
     }
@@ -640,6 +661,11 @@ function decide(g: Game, u: Unit) {
     if (cheb(here, g.cellOf(threat)) <= 1 && threat.z === u.z) {
       // cornered: fight back
       assign(g, u, mkJob('attack', `Fighting off ${g.unitName(threat)}`, g.cellOf(threat), { u: threat.id, data: 1 }));
+      return;
+    }
+    // enough of us, and few enough of them: stand together instead of dying one at a time
+    if (mobOdds(g, u, threat)) {
+      assign(g, u, mkJob('attack', `Mobbing ${g.unitName(threat)}`, g.cellOf(threat), { u: threat.id }));
       return;
     }
     // run to whichever candidate spot is farthest from the threat
