@@ -9,7 +9,7 @@ import type { Item, Job, Unit, Wound } from './types';
 import { DIRS8, X, Y, Z, cheb, dist, idx, inMap } from './world';
 
 export const HUNGER_RATE = 100 / (TICKS_DAY * 3);
-export const THIRST_RATE = 100 / (TICKS_DAY * 2);
+export const THIRST_RATE = 100 / (TICKS_DAY * 4); // a drink roughly every two days
 export const TIRED_RATE = 100 / (TICKS_DAY * 1.6);
 export const SOBER_SLOW = TICKS_DAY * 5; // works slowly without booze
 export const SOBER_SICK = TICKS_DAY * 12; // withdrawal starts to kill
@@ -89,8 +89,8 @@ export function downReason(u: Unit): string {
   if (u.hp < u.maxHp * 0.25) return u.sober > SOBER_SICK ? 'collapsed from alcohol withdrawal' : 'too badly hurt to stand';
   const leg = u.wounds.find((w) => w.sev === 2 && !w.treated && w.part >= 5);
   if (leg) return `cannot walk: ${leg.desc} ${PARTS[leg.part]}`;
-  const core = u.wounds.find((w) => w.sev === 2 && !w.treated && w.part <= 2);
-  if (core) return `incapacitated: ${core.desc} ${PARTS[core.part]}`;
+  const head = u.wounds.find((w) => w.sev === 2 && !w.treated && w.part === 0);
+  if (head) return `knocked senseless: ${head.desc} head`;
   if (u.hunger >= STARVE * 0.85) return 'too weak from hunger to stand';
   if (u.thirst >= DEHYDRATE * 0.85) return 'too weak from thirst to stand';
   return '';
@@ -115,15 +115,20 @@ export function attack(g: Game, a: Unit, b: Unit) {
   const cd = CREATURES[a.kind];
   const sa = fightSkill(g, a);
   a.atkCd = Math.max(6, 13 - Math.floor(sa / 3));
-  const helpless = b.downSince > 0 || b.job?.type === 'sleep' || b.state === 'caged';
+  // a fighter with a broken leg still has a weapon arm: only the unconscious, the sleeping and the caged are helpless
+  const out = b.downSince > 0 && (b.blood < 35 || b.hp < b.maxHp * 0.25);
+  const helpless = out || b.job?.type === 'sleep' || b.state === 'caged';
   const sb = helpless ? -10 : fightSkill(g, b);
+  // ganging up: every other attacker already on the target makes it easier to land a blow
+  let allies = 0;
+  for (const o of g.units.values()) if (o !== a && !o.dead && o.target === b.id && o.z === b.z && cheb(g.cellOf(o), g.cellOf(b)) <= 1) allies++;
   onAttacked(g, b, a);
-  g.train(a, 'fight', 4);
-  if (!g.rng.chance(Math.min(0.95, Math.max(0.15, 0.55 + (sa - sb) * 0.06)))) return;
+  g.train(a, 'fight', 1);
+  if (!g.rng.chance(Math.min(0.95, Math.max(0.15, 0.55 + (sa - sb) * 0.06 + Math.min(3, allies) * 0.1)))) return;
   const an = cap(a.isDwarf ? first(a) : g.unitName(a)), bn = b.isDwarf ? first(b) : g.unitName(b);
   const shield = g.items.get(b.equip.shield);
   if (shield && !helpless && g.rng.chance(0.25 + sb * 0.03)) {
-    g.train(b, 'fight', 6);
+    g.train(b, 'fight', 3);
     if (a.isDwarf || b.isDwarf) g.say(`${an} attacks, but ${bn} blocks with the ${g.itemName(shield, true)}.`, 'combat', g.cellOf(b));
     return;
   }
@@ -138,14 +143,14 @@ export function attack(g: Game, a: Unit, b: Unit) {
   const prot = armorAt(g, b, part) * (dtype === 'blunt' ? 0.7 : 1);
   const dmg = Math.max(1, base * (0.6 + g.rng.next() * 0.8) * (1 + sa * 0.04) - prot);
   b.hp -= dmg;
-  g.train(a, 'fight', 6);
+  g.train(a, 'fight', 3);
   const frac = dmg / b.maxHp;
   let text = '';
-  if (frac >= 0.2) {
+  if (frac >= 0.3) {
     const w = addWound(g, b, part, 2, dtype);
     text = `${w.desc}`;
     if (part === 0 && b.hp < b.maxHp * 0.45 && g.rng.chance(0.5)) b.hp = 0;
-  } else if (frac >= 0.07) text = addWound(g, b, part, 1, dtype).desc;
+  } else if (frac >= 0.1) text = addWound(g, b, part, 1, dtype).desc;
   if (a.faction === 'fort' || b.faction === 'fort') {
     const verb = wd ? wd.verb : cd.verb;
     const withW = wpn ? ` with ${a.isDwarf ? 'a' : 'its'} ${g.itemName(wpn, true)}` : '';
@@ -160,7 +165,7 @@ export function attack(g: Game, a: Unit, b: Unit) {
 function onAttacked(g: Game, b: Unit, a: Unit) {
   if (!b.isDwarf) {
     const d = CREATURES[b.kind];
-    if (b.faction === 'wild' && !d.predator && d.size < 1) b.flee = true;
+    if (b.faction === 'wild' && !d.predator && d.dmg < 4) b.flee = true;
     else if (!b.target) b.target = a.id;
     return;
   }
@@ -241,7 +246,12 @@ function wanderTo(g: Game, u: Unit, cell: number, wait: number) {
 RUN.attack = (g, u, j) => {
   const t = g.units.get(j.u!);
   if (!t || t.dead || t.state === 'caged') return 'done';
-  if (!g.hostile(u, t) && !j.forced) return 'done';
+  if (j.data) {
+    // against something that is not formally an enemy (a boar, a bear): fight only until it backs off.
+    // 1 = self-defence, stays close; 2 = militia coming to someone's rescue, from further away
+    const still = t.target && g.units.get(t.target)?.faction === 'fort' && !t.flee;
+    if (!still || dist(g.cellOf(u), g.cellOf(t)) > (j.data === 2 ? 40 : 8)) return 'done';
+  } else if (!g.hostile(u, t) && !j.forced) return 'done';
   u.target = t.id;
   return chase(g, u, t) ? 'run' : 'cannot reach the target';
 };
@@ -328,9 +338,11 @@ function slowTick(g: Game, u: Unit) {
 
   // ---- dwarf needs
   const asleep = u.job?.type === 'sleep';
-  u.hunger += HUNGER_RATE * 10 * (asleep ? 0.5 : 1);
-  u.thirst += THIRST_RATE * 10 * (asleep ? 0.5 : 1);
-  u.tired += TIRED_RATE * 10;
+  // a dwarf in a strange mood neither eats, drinks nor sleeps, and does not suffer for it until it is over
+  const needs = u.state === 'mood' ? 0 : asleep ? 0.5 : 1;
+  u.hunger += HUNGER_RATE * 10 * needs;
+  u.thirst += THIRST_RATE * 10 * needs;
+  u.tired += TIRED_RATE * 10 * (u.state === 'mood' ? 0 : 1);
   u.sober += 10;
   if (u.hunger >= STARVE) return killUnit(g, u, 'starved to death');
   if (u.thirst >= DEHYDRATE) return killUnit(g, u, 'died of thirst');
@@ -425,7 +437,7 @@ function gearUp(g: Game, u: Unit): Job | null {
 function decide(g: Game, u: Unit) {
   const j = u.job;
   const here = g.cellOf(u);
-  const threat = nearestThreat(g, u, 7);
+  const threat = nearestThreat(g, u, u.drafted ? 16 : 7);
   if (u.drafted) {
     if (j && j.forced && (j.type === 'attack' || j.type === 'move' || j.type === 'equip')) return;
     if (threat) {
@@ -443,12 +455,27 @@ function decide(g: Game, u: Unit) {
     u.whyIdle = 'Drafted: standing by for your orders. Right-click a tile to move or an enemy to attack. Undraft (R) to return to work.';
     return;
   }
+  // the militia answers the alarm without being told: raiders and thieves anywhere near, not things minding their own caves
+  if (u.militia && !(j && j.forced)) {
+    let foe = nearestHostile(g, u, 30);
+    if (!foe) {
+      for (const o of g.units.values()) {
+        if (o.faction !== 'wild' || o.dead || !o.target || CREATURES[o.kind].water) continue;
+        if (g.units.get(o.target)?.faction === 'fort' && dist(here, g.cellOf(o)) < 30 && g.w.canReach(here, g.cellOf(o), true)) foe = o;
+      }
+    }
+    if (foe && (foe.faction === 'wild' || foe.home === undefined || foe.target)) {
+      if (!j || j.type !== 'attack') assign(g, u, mkJob('attack', `Answering the alarm: fighting ${g.unitName(foe)}`, g.cellOf(foe), { u: foe.id, data: foe.faction === 'wild' ? 2 : undefined }));
+      return;
+    }
+  }
   if (threat) {
     if (j && (j.type === 'flee' || j.type === 'attack')) return;
+    if (j && j.type === 'hunt' && j.u === threat.id) return; // the prey turned on the hunter: keep at it
     if (j && j.forced && cheb(here, g.cellOf(threat)) > 3) return;
     if (cheb(here, g.cellOf(threat)) <= 1 && threat.z === u.z) {
       // cornered: fight back
-      assign(g, u, mkJob('attack', `Fighting off ${g.unitName(threat)}`, g.cellOf(threat), { u: threat.id }));
+      assign(g, u, mkJob('attack', `Fighting off ${g.unitName(threat)}`, g.cellOf(threat), { u: threat.id, data: 1 }));
       return;
     }
     // run to whichever candidate spot is farthest from the threat
@@ -590,12 +617,17 @@ function checkTrap(g: Game, u: Unit) {
 function hostileTick(g: Game, u: Unit) {
   if (u.kind === 'kobold') return thiefTick(g, u);
   if (u.flee || (u.leaveAt && g.tick > u.leaveAt)) return goHome(g, u);
+  if (u.kind === 'goblin' && !u.flee && u.hp < u.maxHp * 0.4) {
+    u.flee = true;
+    g.say(`${cap(g.unitName(u))} breaks and runs!`, 'good', g.cellOf(u));
+  }
   if (g.tick >= u.nextThink) {
     u.nextThink = g.tick + 15;
-    const t = nearestHostile(g, u, 200);
+    // raiders hunt the whole map; things that live in the caverns only defend their territory
+    const t = nearestHostile(g, u, u.home !== undefined && u.faction === 'enemy' && !u.isDwarf ? 12 : 200);
     u.target = t ? t.id : 0;
     if (!t && (!u.path || !u.path.length)) {
-      const c = g.randomNear(g.cellOf(u), 6);
+      const c = g.randomNear(u.home ?? g.cellOf(u), 6);
       u.path = g.w.findPath(g.cellOf(u), c, false);
     }
   }
@@ -675,10 +707,15 @@ function wildTick(g: Game, u: Unit) {
     u.nextThink = g.tick + 20 + g.rng.int(10);
     const t = g.units.get(u.target);
     if (t && (t.dead || dist(here, g.cellOf(t)) > 14)) u.target = 0;
+    // a hurt animal gives up the fight
+    if (u.target && u.hp < u.maxHp * 0.5) {
+      u.target = 0;
+      u.flee = true;
+    }
     if (!u.target && d.predator) {
       for (const o of g.units.values()) {
-        if (o.faction !== 'fort' || o.dead || o.z !== u.z || cheb(here, g.cellOf(o)) > 5) continue;
-        if (!g.w.canReach(here, g.cellOf(o), true)) continue;
+        if (o.faction !== 'fort' || o.dead || o.z !== u.z || cheb(here, g.cellOf(o)) > 4) continue;
+        if (!g.rng.chance(0.35) || !g.w.canReach(here, g.cellOf(o), true)) continue;
         u.target = o.id;
         if (o.isDwarf) g.say(`${cap(g.unitName(u))} is stalking ${o.name}!`, 'bad', here);
         break;

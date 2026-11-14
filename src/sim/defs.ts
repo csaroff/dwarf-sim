@@ -257,7 +257,7 @@ export interface CreatureDef {
   flies?: boolean;
 }
 export const CREATURES: Record<string, CreatureDef> = {
-  dwarf: { id: 'dwarf', name: 'dwarf', glyph: '☺', fg: '#fff', size: 1, speed: 6, dmg: 4, verb: 'punches', dtype: 'blunt', skill: 0 },
+  dwarf: { id: 'dwarf', name: 'dwarf', glyph: '☺', fg: '#fff', size: 1, speed: 6, dmg: 5, verb: 'punches', dtype: 'blunt', skill: 0 },
   dog: { id: 'dog', name: 'dog', glyph: 'd', fg: '#c09050', size: 0.6, speed: 4, dmg: 5, verb: 'bites', dtype: 'edge', skill: 3, tame: true, meat: 3 },
   cat: { id: 'cat', name: 'cat', glyph: 'c', fg: '#e0e0e0', size: 0.2, speed: 4, dmg: 1, verb: 'scratches', dtype: 'edge', skill: 2, tame: true, meat: 1 },
   yak: { id: 'yak', name: 'yak', glyph: 'Y', fg: '#a08060', size: 2.5, speed: 8, dmg: 4, verb: 'kicks', dtype: 'blunt', skill: 1, tame: true, meat: 10 },

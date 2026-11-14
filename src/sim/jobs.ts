@@ -369,7 +369,7 @@ export function tryDesig(g: Game, u: Unit, cell: number): Try {
   if (!w.canReach(from, cell, true, selfOk)) {
     if (!w.workSpots(cell, selfOk).length) {
       if (w.dangerous(cell) || DIRS8.some(([dx, dy]) => inMap(X(cell) + dx, Y(cell) + dy, Z(cell)) && w.dangerous(cell + dx + dy * 96))) return 'the area is flooded';
-      return 'nowhere to stand next to it yet (it will become reachable as digging gets closer)';
+      return 'nowhere to stand next to it yet: it becomes reachable as digging gets closer (stairs need stairs directly above or below, or an open tile beside them)';
     }
     return 'no path to it (blocked off, or on a level with no stairs/ramp connection)';
   }
@@ -434,6 +434,7 @@ export function canPlace(g: Game, type: string, x: number, y: number, z: number,
   for (const c of cells) {
     if (!w.revealed(c)) return NO('Unexplored');
     if (g.bAt.has(c)) return NO('Something is already built here');
+    if (g.w.desig[c]) return NO(`There is a "${DG_NAME[g.w.desig[c]]}" order on this tile: cancel it first (Orders > Cancel orders)`);
     const t = w.tile[c];
     if (w.water[c] > 1 || w.magma[c] > 0) {
       if (type !== 'wall' && type !== 'floor' && type !== 'bridge') return NO('Flooded');
@@ -481,7 +482,6 @@ export function canPlace(g: Game, type: string, x: number, y: number, z: number,
 export function placeBuilding(g: Game, type: string, x: number, y: number, z: number, bw?: number, bh?: number): Building | null {
   if (!canPlace(g, type, x, y, z, bw, bh).ok) return null;
   const b = g.addBuilding(type, x, y, z, bw, bh);
-  for (const c of g.cellsOf(b)) if (g.w.desig[c]) g.designate(c, 0);
   g.w.version++;
   return b;
 }
@@ -644,6 +644,11 @@ function produce(g: Game, u: Unit, b: Building, r: Recipe, ins: Item[]) {
       const names = ins.filter((i) => i.type !== 'fuel').map((i) => g.itemName(i, true).replace(/ meat$/, ''));
       const n = ins.reduce((a, i) => a + (i.type === 'fuel' ? 0 : i.n), 0);
       const style = r.id === 'feast' ? g.rng.pick(['roast', 'stew', 'feast']) : g.rng.pick(['biscuits', 'stew', 'hash']);
+      // the cook saves the seeds, so cooking never starves the farm
+      for (const i of ins) {
+        const p = i.type === 'plant' ? plantOf(i.sub || '') : null;
+        if (p && p.grow) out('seed', MAT.none, i.n, { sub: p.id });
+      }
       out('meal', MAT.none, n * 2 + (r.id === 'feast' ? 2 : 0), { sub: `${names[0]} ${style}`, q: Math.min(5, g.qualityRoll(u, 'cook') + (r.id === 'feast' ? 1 : 0)) });
       break;
     }
@@ -692,7 +697,7 @@ export function tryPlant(g: Game, u: Unit, zone: Zone, cell: number): Try {
   if (!g.w.canReach(g.cellOf(u), cell, false)) return 'no path to the farm plot';
   const info = {};
   const seed = g.findItem(u, (i) => i.type === 'seed' && i.sub === zone.crop, info);
-  if (!seed) return g.whyNoItem(`needs ${plantOf(zone.crop).name} seeds (brewing or eating the plant raw leaves seeds; cooking destroys them)`, info);
+  if (!seed) return g.whyNoItem(`needs ${plantOf(zone.crop).name} seeds (brewing, cooking or eating the plant gives its seeds back; caravans sell them)`, info);
   return mk('plant', `Planting ${plantOf(zone.crop).name}`, cell, { item: seed.id, key, labor: 'farm', sub: zone.crop });
 }
 export const ripe = (g: Game, cell: number) => {
@@ -732,7 +737,16 @@ export function tryHunt(g: Game, u: Unit, prey: Unit): Try {
   if (g.claimed('u' + prey.id, u)) return `${first(g.claimant('u' + prey.id)!)} is already hunting it`;
   if (CREATURES[prey.kind].water) return 'it is in the water where no dwarf can follow';
   if (!g.w.canReach(g.cellOf(u), g.cellOf(prey), true)) return 'no path to it';
-  return mk('hunt', `Hunting ${g.unitName(prey)}`, g.cellOf(prey), { u: prey.id, key: 'u' + prey.id, labor: 'hunt' });
+  const hunt = mk('hunt', `Hunting ${g.unitName(prey)}`, g.cellOf(prey), { u: prey.id, key: 'u' + prey.id, labor: 'hunt' });
+  if (u.equip.weapon || u.equip.axe || u.equip.pick) return hunt;
+  // nobody wrestles a boar bare-handed: fetch a weapon first (picks are left for the miners)
+  const info = {};
+  const wpn = g.findItem(u, (i) => !!ITEMS[i.type].weapon && ITEMS[i.type].tool !== 'pick', info);
+  if (!wpn) return g.whyNoItem('needs a weapon to hunt with (spear, sword, axe, hammer)', info);
+  const eq = tryEquip(g, u, wpn);
+  if (!isJob(eq)) return eq;
+  eq.next = hunt;
+  return eq;
 }
 export function trySlaughter(g: Game, u: Unit, a: Unit): Try {
   if (a.dead) return 'It is already dead';
@@ -1486,10 +1500,18 @@ function nearest<X>(list: Iterable<X>, cellOf: (x: X) => number, from: number, k
   return arr.slice(0, k).map((a) => a.x);
 }
 
-/** candidate tasks for one labor, nearest first, as thunks */
-function candidates(g: Game, u: Unit, labor: Labor): (() => Try)[] {
+/**
+ * A task a dwarf might take. `group` names what its failure would have in common with other candidates
+ * ("no stockpile takes stone", "no doors to install"): once one of a group fails that way the rest are
+ * skipped, so a pile of impossible jobs nearby never hides a possible one further away.
+ */
+type Cand = (() => Try) & { group?: string };
+const inGroup = (group: string, f: () => Try): Cand => Object.assign(f, { group });
+
+/** candidate tasks for one labor, nearest first */
+function candidates(g: Game, u: Unit, labor: Labor): Cand[] {
   const from = g.cellOf(u);
-  const out: (() => Try)[] = [];
+  const out: Cand[] = [];
   const desigs = () => {
     const cells: number[] = [];
     for (const c of g.desigs) if (DG_LABOR[g.w.desig[c]] === labor && !g.claimed('d' + c, u)) cells.push(c);
@@ -1513,7 +1535,10 @@ function candidates(g: Game, u: Unit, labor: Labor): (() => Try)[] {
     case 'build': {
       const bs: Building[] = [];
       for (const b of g.buildings.values()) if ((!b.built && !b.suspended) || b.remove) bs.push(b);
-      for (const b of nearest(bs, (b) => g.center(b), from, NEAR + 4)) out.push(() => (b.remove ? tryDeconstruct(g, u, b) : tryBuild(g, u, b)));
+      for (const b of nearest(bs, (b) => g.center(b), from, 999)) {
+        const ing = b.built ? null : missingFor(g, b);
+        out.push(inGroup(`build:${b.type}:${ing ? ingName(ing) : b.built ? 'remove' : 'construct'}`, () => (b.remove ? tryDeconstruct(g, u, b) : tryBuild(g, u, b))));
+      }
       desigs();
       break;
     }
@@ -1525,11 +1550,11 @@ function candidates(g: Game, u: Unit, labor: Labor): (() => Try)[] {
           if (g.claimed('f' + c, u)) continue;
           if (g.crops.has(c)) {
             if (ripe(g, c)) harvest.push(c);
-          } else plant.push([z, c]);
+          } else if (cropCan(g, c, z.crop).ok) plant.push([z, c]);
         }
       }
       for (const c of nearest(harvest, (c) => c, from, 3)) out.push(() => tryHarvest(g, u, c));
-      for (const [z, c] of nearest(plant, (p) => p[1], from, 3)) out.push(() => tryPlant(g, u, z, c));
+      for (const [z, c] of nearest(plant, (p) => p[1], from, 12)) out.push(inGroup('plant:' + z.crop, () => tryPlant(g, u, z, c)));
       desigs();
       break;
     }
@@ -1543,7 +1568,7 @@ function candidates(g: Game, u: Unit, labor: Labor): (() => Try)[] {
       for (const b of g.buildings.values()) if (b.type === 'lever' && b.pull) out.push(() => tryPull(g, u, b));
       for (const it of g.items.values()) if (it.type === 'corpse' && it.dwarf && g.onGround(it) && !it.res) out.push(() => tryBury(g, u, it));
       const loose = g.looseItems().map((i) => g.items.get(i)).filter((i): i is Item => !!i && !i.res && g.onGround(i));
-      for (const it of nearest(loose, (i) => g.cellOf(i), from, NEAR)) out.push(() => tryHaul(g, u, it));
+      for (const it of nearest(loose, (i) => g.cellOf(i), from, 999)) out.push(inGroup('haul:' + ITEMS[it.type].cat, () => tryHaul(g, u, it)));
       break;
     }
     default:
@@ -1574,9 +1599,15 @@ export function findWork(g: Game, u: Unit): Job | null {
   const reasons: string[] = [];
   for (const l of labors) {
     let why = '';
+    const failed = new Set<string>();
+    let tries = 0;
     for (const c of candidates(g, u, l)) {
+      if (c.group && failed.has(c.group)) continue;
+      if (++tries > 40) break;
       const t = c();
       if (isJob(t)) return t;
+      // "no path" and "someone else has it" are about that one target; anything else applies to the whole group
+      if (c.group && !/path|already|reserved/.test(t)) failed.add(c.group);
       // "nothing to do" style reasons are not interesting
       if (!why && !/^(Target reached|This work order is paused|This work order is complete|Not ripe|Something is already growing|.* is (already|using))/.test(t)) why = t;
     }

@@ -40,6 +40,8 @@ export class Game {
     cavern: 0, magmaSeen: false, hell: false, raids: 0, deaths: 0, migrants: 0, lost: false, artifacts: 0,
   };
   wealth = 0;
+  /** set when something happens that the player must see: the UI pauses and jumps there */
+  attention: LogEntry | null = null;
 
   // derived indexes (rebuilt on load)
   itemsAt = new Map<number, number[]>();
@@ -86,7 +88,7 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ log
-  say(text: string, kind: LogEntry['kind'] = 'info', cell?: number) {
+  say(text: string, kind: LogEntry['kind'] = 'info', cell?: number, urgent = false) {
     const e: LogEntry = { tick: this.tick, text, kind };
     if (cell !== undefined && cell >= 0) {
       e.x = X(cell);
@@ -94,6 +96,7 @@ export class Game {
       e.z = Z(cell);
     }
     this.log.push(e);
+    if (urgent) this.attention = e;
     if (this.log.length > 600) this.log.splice(0, 150);
   }
 
@@ -344,7 +347,9 @@ export class Game {
     if (this.tick - this.stockCacheTick < 20 && this.stockCacheTick >= 0) return this.stockCache;
     const s: Record<string, number> = { drink: 0, food: 0, seeds: 0 };
     for (const it of this.items.values()) {
-      if (!this.onGround(it) || it.forbid) continue;
+      // things being carried by a dwarf still belong to the fortress
+      const carried = it.held && this.units.get(it.held)?.carry === it.id && this.units.get(it.held)?.faction === 'fort';
+      if ((!this.onGround(it) && !carried) || it.forbid) continue;
       s[it.type] = (s[it.type] || 0) + it.n;
       if (this.edible(it)) s.food += it.n;
       if (it.type === 'seed') s.seeds += it.n;
@@ -759,7 +764,7 @@ export class Game {
       w: new World(), rng: new Rng(1), seed: d.seed, tick: d.tick, nextId: d.nextId, fortName: d.fortName, embark: d.embark, ev: d.ev, caravan: d.caravan, wealth: 0,
       items: new Map(), units: new Map(), buildings: new Map(), zones: new Map(), log: d.log, crops: new Map(d.crops), desigs: new Set(),
       itemsAt: new Map(), bAt: new Map(), zoneAt: new Map(), claims: new Map(d.claims), spRes: new Map(d.spRes), alerts: [], unitsAt: new Map(),
-      haulCache: [], haulCacheTick: -999, stockCache: {}, stockCacheTick: -999, onHell: () => {},
+      attention: null, haulCache: [], haulCacheTick: -999, stockCache: {}, stockCacheTick: -999, onHell: () => {},
     });
     g.rng.s = d.rs;
     g.w.load(d.world);

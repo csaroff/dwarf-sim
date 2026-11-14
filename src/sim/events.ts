@@ -1,9 +1,9 @@
 // The world acting on the fortress: embark, seasons, migrants, caravans, raids, wildlife,
 // strange moods, the things that live below — and the alert list that tells you what is wrong.
-import { BUILDINGS, CREATURES, FIRST_NAMES, H, ITEMS, LABOR_NAME, MAT, MATS, PLANT, PLANTS, RECIPES, T, TICKS_DAY, TICKS_SEASON, W, plantOf } from './defs';
+import { BUILDINGS, CREATURES, CROPS, FIRST_NAMES, H, ITEMS, LABOR_NAME, MAT, MATS, PLANT, PLANTS, RECIPES, T, TICKS_DAY, TICKS_SEASON, W, plantOf } from './defs';
 import { Game } from './game';
 import {
-  DG_LABOR, DG_NAME, RUN, assign, canWalk, endJob, explainTask, fetch, isJob, missingFor, needsTending, tryBuild, tryDesig, tryRescue, walk,
+  DG_LABOR, DG_NAME, RUN, assign, canWalk, endJob, explainTask, fetch, isJob, needsTending, tryBuild, tryDesig, tryHaul, tryRescue, walk,
 } from './jobs';
 import { SOBER_SLOW, downReason, killUnit } from './life';
 import type { Alert, Building, Item, Job, Unit } from './types';
@@ -30,7 +30,7 @@ export function embark(g: Game) {
     }
   }
   const drinks = ['dwarven ale', 'dwarven wine', 'dwarven beer', 'dwarven rum'];
-  for (let k = 0; k < 12; k++) g.spawnItem('drink', MAT.oak, near(), 5, { sub: drinks[k % 4] });
+  for (let k = 0; k < 16; k++) g.spawnItem('drink', MAT.oak, near(), 5, { sub: drinks[k % 4] });
   for (const m of ['plump helmet biscuits', 'yak stew', 'cave wheat hash']) g.spawnItem('meal', MAT.none, near(), 20, { sub: m });
   g.spawnItem('plant', MAT.none, near(), 10, { sub: 'plump_helmet' });
   for (const s of ['plump_helmet', 'pig_tail', 'cave_wheat', 'sweet_pod']) g.spawnItem('seed', MAT.none, near(), s === 'plump_helmet' ? 12 : 6, { sub: s });
@@ -39,6 +39,7 @@ export function embark(g: Game) {
   g.spawnItem('cloth', MAT.cloth, near(), 4);
   g.spawnItem('splint', MAT.oak, near(), 2);
   g.spawnItem('pick', MAT.copper, near());
+  for (let k = 0; k < 2; k++) g.spawnItem('spear', MAT.copper, near());
   for (const k of ['dog', 'dog', 'cat', 'yak', 'yak']) {
     const p = g.addUnit(k, near(), 'fort');
     p.name = g.rng.pick(FIRST_NAMES);
@@ -46,7 +47,7 @@ export function embark(g: Game) {
   for (let k = 0; k < 7; k++) spawnWild(g);
   g.ev.nextMigrants = TICKS_DAY * 9;
   g.ev.nextThief = TICKS_DAY * 14;
-  g.ev.nextRaid = TICKS_DAY * 26;
+  g.ev.nextRaid = TICKS_DAY * 34;
   g.ev.nextCaravan = TICKS_DAY * 16;
   g.ev.nextMood = TICKS_DAY * 20;
   g.ev.nextBeast = TICKS_DAY * 60;
@@ -56,7 +57,9 @@ export function embark(g: Game) {
 
 // ------------------------------------------------------------------ wildlife
 function spawnWild(g: Game) {
-  const kinds = ['deer', 'deer', 'groundhog', 'groundhog', 'boar', 'wolf', 'bear', 'elephant', 'deer'];
+  // the first weeks are quiet: predators turn up once the fortress has found its feet
+  const gentle = g.tick < TICKS_DAY * 18;
+  const kinds = gentle ? ['deer', 'deer', 'groundhog', 'groundhog', 'boar'] : ['deer', 'deer', 'groundhog', 'groundhog', 'boar', 'wolf', 'bear', 'elephant', 'deer'];
   const k = g.rng.pick(kinds);
   const c = g.randomEdgeCell();
   const inland = g.randomNear(c, 12);
@@ -80,8 +83,10 @@ function cavernCell(g: Game, z0: number): number {
 function spawnCavern(g: Game) {
   const c = cavernCell(g, g.ev.cavern >= 2 && g.rng.chance(0.5) ? CAVERN2_Z : CAVERN1_Z);
   if (c < 0) return;
-  const k = g.rng.pick(['crundle', 'crundle', 'crundle', 'cave_croc', 'troll', 'spider']);
-  const n = k === 'crundle' ? 3 : 1;
+  // the nastier things only take an interest once the fortress is worth their while
+  const big = g.dwarves().length >= 15;
+  const k = g.rng.pick(big ? ['crundle', 'crundle', 'cave_croc', 'troll', 'spider'] : ['crundle', 'crundle', 'crundle', 'cave_croc']);
+  const n = k === 'crundle' ? 2 : 1;
   for (let i = 0; i < n; i++) {
     const d = CREATURES[k];
     const u = g.addUnit(k, g.randomNear(c, 2), d.hostile ? 'enemy' : 'wild');
@@ -123,26 +128,28 @@ function arm(g: Game, u: Unit, tier: number) {
   const mat = tier >= 2 ? MAT.iron : MAT.copper;
   const c = g.cellOf(u);
   g.equip(u, g.spawnItem(g.rng.pick(['sword', 'spear', 'hammer', 'axe']), mat, c), 'weapon');
-  if (g.rng.chance(0.3 + tier * 0.2)) g.equip(u, g.spawnItem('shield', mat, c), 'shield');
-  if (g.rng.chance(0.2 + tier * 0.25)) g.equip(u, g.spawnItem('helm', mat, c), 'head');
+  // the first raiding parties are a rabble; later ones come properly equipped
+  if (g.rng.chance(0.1 + tier * 0.25)) g.equip(u, g.spawnItem('shield', mat, c), 'shield');
+  if (g.rng.chance(0.1 + tier * 0.25)) g.equip(u, g.spawnItem('helm', mat, c), 'head');
   if (g.rng.chance(tier * 0.25)) g.equip(u, g.spawnItem('mail', tier >= 2 ? mat : MAT.leather, c), 'body');
 }
 export function raid(g: Game, size?: number) {
   const pop = g.dwarves().length;
-  const n = size ?? Math.max(2, Math.round(1 + g.ev.raids * 1.2 + pop / 6));
+  // the first party is a pair of scouts; later ones grow with the fortress but never outnumber what it could field
+  const n = size ?? Math.max(2, Math.min(Math.ceil(pop * 0.4), Math.round(1 + g.ev.raids * 0.8 + pop / 8)));
   const c = g.randomEdgeCell();
-  const tier = Math.min(3, Math.floor(g.ev.raids / 2));
+  const tier = Math.min(3, Math.floor(g.ev.raids / 3));
   for (let k = 0; k < n; k++) {
     const u = g.addUnit('goblin', g.randomNear(c, 3), 'enemy');
     u.name = g.rng.pick(['Snodub', 'Ngokang', 'Utes', 'Osmstozu', 'Azstrog', 'Bax', 'Stozu', 'Zom', 'Dostngosp', 'Smunstu']);
-    u.skill = 2 + tier + g.rng.int(3);
+    u.skill = 1 + tier + g.rng.int(2);
     u.leaveAt = g.tick + TICKS_DAY * 5;
     arm(g, u, tier);
   }
-  if (g.ev.raids >= 3) for (let k = 0; k < Math.floor(g.ev.raids / 3); k++) g.addUnit('troll', g.randomNear(c, 3), 'enemy').leaveAt = g.tick + TICKS_DAY * 5;
+  if (g.ev.raids >= 4 && pop >= 20) for (let k = 0; k < Math.floor(g.ev.raids / 4); k++) g.addUnit('troll', g.randomNear(c, 3), 'enemy').leaveAt = g.tick + TICKS_DAY * 5;
   g.ev.raids++;
-  g.say(n >= 8 ? `A vile force of darkness has arrived! ${n} goblins lay siege to ${g.fortName.split(',')[0]}.` : `An ambush! ${n} goblins charge from the wilderness. Draft your militia (R) or lock the doors.`, 'death', c);
-  g.ev.nextRaid = g.tick + TICKS_DAY * (16 + g.rng.int(14));
+  g.say(n >= 8 ? `A vile force of darkness has arrived! ${n} goblins lay siege to ${g.fortName.split(',')[0]}.` : `An ambush! ${n} goblins charge from the wilderness. Draft your militia (R) or lock the doors.`, 'death', c, true);
+  g.ev.nextRaid = g.tick + TICKS_DAY * (22 + g.rng.int(16));
 }
 function thief(g: Game) {
   g.ev.nextThief = g.tick + TICKS_DAY * (10 + g.rng.int(12));
@@ -158,12 +165,12 @@ function beast(g: Game) {
   const u = g.addUnit('beast', c, 'enemy');
   const forms = ['towering eyeless lizard', 'great three-headed toad', 'enormous blob of ash', 'huge skinless bat', 'gigantic one-eyed crab'];
   u.name = `${g.rng.pick(['Osplu', 'Ngathsesh', 'Zuspo', 'Thrak', 'Olngo'])} ${g.rng.pick(['Wraithfang', 'the Cinder of Ends', 'Rotmaw', 'Doomgrasp'])}`;
-  g.say(`The Forgotten Beast ${u.name} has come! A ${g.rng.pick(forms)}. It has ${g.rng.pick(['a gaunt appearance', 'emerald scales', 'lidless eyes'])}. Beware its ${g.rng.pick(['deadly dust', 'webs', 'poisonous bite'])}!`, 'death', c);
+  g.say(`The Forgotten Beast ${u.name} has come! A ${g.rng.pick(forms)}. It has ${g.rng.pick(['a gaunt appearance', 'emerald scales', 'lidless eyes'])}. Beware its ${g.rng.pick(['deadly dust', 'webs', 'poisonous bite'])}!`, 'death', c, true);
 }
 function hell(g: Game, cell: number) {
   if (g.ev.hell) return;
   g.ev.hell = true;
-  g.say('Horrifying screams come from the darkness below! You have dug too deep, too greedily.', 'death', cell);
+  g.say('Horrifying screams come from the darkness below! You have dug too deep, too greedily.', 'death', cell, true);
   const at = g.nearestFree(cell);
   for (let k = 0; k < 6; k++) {
     const u = g.addUnit('demon', g.randomNear(at, 1), 'enemy');
@@ -308,19 +315,24 @@ function startMood(g: Game) {
   g.ev.nextMood = g.tick + TICKS_DAY * (18 + g.rng.int(20));
   const c = g.dwarves().filter((u) => !u.state && canWalk(u) && !u.drafted && g.tick - u.arrived > TICKS_DAY * 5);
   if (c.length < 5 || g.dwarves().some((u) => u.state === 'mood')) return;
-  const u = g.rng.pick(c);
+  beginMood(g, g.rng.pick(c));
+}
+/** Put a dwarf into a strange mood. It only ever demands kinds of material the fortress already owns. */
+export function beginMood(g: Game, u: Unit) {
   const pool: { type: string; kind?: string }[] = [
     { type: 'boulder', kind: 'stone' }, { type: 'log', kind: 'wood' }, { type: 'gem', kind: 'rough gem' }, { type: 'bone', kind: 'bones' }, { type: 'bar', kind: 'metal bar' },
     { type: 'cloth', kind: 'cloth' }, { type: 'leather', kind: 'leather' },
   ];
-  const needs = [pool[g.rng.int(2)]];
-  while (needs.length < 3) {
-    const n = g.rng.pick(pool);
+  const owned = pool.filter((n) => g.count((i) => i.type === n.type) > 0);
+  const from = owned.length ? owned : [pool[0]];
+  const needs: typeof pool = [];
+  while (needs.length < Math.min(3, from.length)) {
+    const n = g.rng.pick(from);
     if (!needs.includes(n)) needs.push(n);
   }
   endJob(g, u);
   u.state = 'mood';
-  u.stateUntil = g.tick + TICKS_DAY * 12;
+  u.stateUntil = g.tick + TICKS_DAY * 8;
   u.moodNeeds = needs.map((n) => ({ ...n, have: false }));
   u.moodShop = 0;
   u.job = mkJob('mood', 'Strange mood: seeking a workshop', g.cellOf(u), { started: g.tick, items: [] });
@@ -450,12 +462,15 @@ function nature(g: Game) {
       w.version++;
     }
   }
-  // rot: perishable food left outside a stockpile
+  // rot: perishable food left outside a stockpile. Stockpiled food keeps.
   for (const it of Array.from(g.items.values())) {
     if (!ITEMS[it.type].rots || !g.onGround(it)) continue;
-    const age = g.tick - it.born;
-    if (age > TICKS_DAY * (g.stored(it) ? 40 : 8)) {
-      if (it.type !== 'hide') g.say(`${cap(g.itemName(it))} has rotted away${g.stored(it) ? '' : ' (it was never hauled to a food stockpile)'}.`, 'info', g.cellOf(it));
+    if (g.stored(it)) {
+      it.born = g.tick;
+      continue;
+    }
+    if (g.tick - it.born > TICKS_DAY * 8) {
+      if (it.type !== 'hide') g.say(`${cap(g.itemName(it))} has rotted away (it was never hauled to a food stockpile).`, 'info', g.cellOf(it));
       g.removeItem(it);
     }
   }
@@ -476,7 +491,7 @@ function nature(g: Game) {
     if (CREATURES[u.kind].where === 'cavern') cav++;
   }
   if (wild < 7 && g.rng.chance(0.5)) spawnWild(g);
-  if (g.ev.cavern && cav < 3 + g.ev.cavern * 2 && g.rng.chance(0.12)) spawnCavern(g);
+  if (g.ev.cavern && cav < 2 + g.ev.cavern * 2 && g.rng.chance(0.03)) spawnCavern(g);
   carpCheck(g);
   // wealth
   let v = 0;
@@ -500,14 +515,16 @@ export function computeAlerts(g: Game): Alert[] {
     let fix: string;
     if (!stills.length) fix = 'Build a Still (Build > Production), then add a "Brew drink" order.';
     else if (!stills.some((b) => b.bills.some((x) => x.recipe === 'brew'))) fix = 'Your Still has no orders: click it and add "Brew drink" (repeat forever).';
-    else fix = 'Brewing is stuck — ' + (stills.map((b) => b.bills.find((x) => x.recipe === 'brew')?.why).find((x) => x) || explainTask(g, 'brew', () => 'no brewer is free'));
+    else fix = stills.map((b) => b.bills.find((x) => x.recipe === 'brew')?.why).find((x) => x) ? 'Brewing is stuck — ' + stills.map((b) => b.bills.find((x) => x.recipe === 'brew')?.why).find((x) => x) : 'Brewing is under way; add more Stills, brewers and farm plots to keep up.';
     out.push({ id: 'booze', sev: drinks === 0 ? 'bad' : 'warn', text: drinks === 0 ? 'No alcohol!' : `Alcohol low (${drinks})`, detail: `${drinks} drinks for ${pop} dwarves. Sober dwarves work slowly, grow miserable and eventually die. ${fix}` });
   }
   const sober = ds.filter((u) => u.sober > SOBER_SLOW);
   if (sober.length) out.push({ id: 'sober', sev: 'bad', text: `${sober.length} sober dwar${sober.length > 1 ? 'ves' : 'f'}`, detail: `${sober.map(first).join(', ')} ha${sober.length > 1 ? 've' : 's'} gone days without a drink.`, unit: sober[0].id });
   // ---- food
   if ((s.food || 0) < pop * 2) {
-    out.push({ id: 'food', sev: s.food ? 'warn' : 'bad', text: s.food ? `Food low (${s.food})` : 'No food!', detail: `${s.food || 0} meals for ${pop} dwarves. Farm plump helmets underground (Zones > Farm on soil), gather wild plants (Orders > Gather), fish, hunt or butcher livestock.` });
+    const greedy = stills.some((b) => b.bills.some((x) => x.recipe === 'brew' && !x.paused && (x.mode === 'forever' || (x.mode === 'until' && x.n > drinks))));
+    const brewing = greedy && drinks > pop * 4 ? ` Your Still is turning plants into drink faster than anyone can eat them (${drinks} drinks in stock): click it and pause the brewing order, or set it to "Until you have ${pop * 4}".` : '';
+    out.push({ id: 'food', sev: s.food ? 'warn' : 'bad', text: s.food ? `Food low (${s.food})` : 'No food!', detail: `${s.food || 0} meals for ${pop} dwarves.${brewing} Farm plump helmets underground (Zones > Farm on soil), gather wild plants (Orders > Gather), fish, hunt or butcher livestock.` });
   }
   // ---- the wounded
   for (const u of ds) {
@@ -522,8 +539,13 @@ export function computeAlerts(g: Game): Alert[] {
     if (!u.state && u.mood < 25) out.push({ id: 'sad' + u.id, sev: 'warn', text: `${first(u)} is miserable`, detail: `${u.name} is close to breaking. Worst thoughts: ${u.thoughts.filter((t) => t.v < 0).sort((a, b) => a.v - b.v).slice(0, 3).map((t) => t.text).join('; ') || 'none'}.`, unit: u.id });
   }
   // ---- enemies
-  const foes = Array.from(g.units.values()).filter((u) => u.faction === 'enemy' && !u.dead && u.state !== 'caged' && g.w.revealed(g.cellOf(u)) && u.kind !== 'kobold');
-  if (foes.length) out.push({ id: 'foes', sev: 'bad', text: `${foes.length} hostile${foes.length > 1 ? 's' : ''}`, detail: `${foes.slice(0, 4).map((f) => g.unitName(f)).join(', ')}${foes.length > 4 ? '…' : ''}. Draft dwarves (select, R) and right-click the enemy to attack — or seal the entrance.`, ...at(g.cellOf(foes[0])) });
+  const foes = Array.from(g.units.values()).filter((u) => u.faction === 'enemy' && !u.dead && u.state !== 'caged' && g.w.revealed(g.cellOf(u)) && u.kind !== 'kobold' && (u.home === undefined || !!u.target));
+  // an enemy that has no route to anyone is a different problem from one at the gate
+  const canReachUs = (f: Unit) => ds.some((d) => g.w.canReach(g.cellOf(f), g.cellOf(d), true));
+  const coming = foes.filter(canReachUs), lurking = foes.filter((f) => !canReachUs(f));
+  const names = (l: Unit[]) => `${l.slice(0, 4).map((f) => g.unitName(f)).join(', ')}${l.length > 4 ? '…' : ''}`;
+  if (coming.length) out.push({ id: 'foes', sev: 'bad', text: `${coming.length} hostile${coming.length > 1 ? 's' : ''}`, detail: `${names(coming)}. Draft dwarves (select, R) and right-click the enemy to attack — or seal the entrance.`, ...at(g.cellOf(coming[0])) });
+  if (lurking.length) out.push({ id: 'lurk', sev: 'warn', text: `${lurking.length} lurking, cut off`, detail: `${names(lurking)}: hostile, but there is no walkable route between it and any of your dwarves right now, so nobody needs to be drafted. Digging into where it lives (or opening a door) changes that.`, ...at(g.cellOf(lurking[0])) });
   // ---- idle dwarves who wanted to work but could not
   const stuck = ds.filter((u) => (!u.job || u.job.type === 'idle') && u.whyIdle.startsWith('Found') && g.tick - u.idleSince > 150 && !u.drafted);
   if (stuck.length) out.push({ id: 'stuck', sev: 'warn', text: `${stuck.length} dwar${stuck.length > 1 ? 'ves' : 'f'} blocked`, detail: `${first(stuck[0])}: ${stuck[0].whyIdle}`, unit: stuck[0].id });
@@ -577,7 +599,12 @@ export function computeAlerts(g: Game): Alert[] {
       why = t;
     }
     b.why = ok ? '' : why;
-    if (!ok && why && out.filter((a) => a.id.startsWith('bld')).length < 3) out.push({ id: 'bld' + b.id, sev: 'warn', text: `${BUILDINGS[b.type].name} stalled`, detail: `Cannot build ${BUILDINGS[b.type].name}: ${why}.${missingFor(g, b) ? '' : ''}`, ...at(g.center(b)) });
+    if (!ok && why) {
+      const id = 'bld' + b.type + why;
+      const prev = out.find((a) => a.id === id);
+      if (prev) prev.text = prev.text.replace(/^(\d+ × )?/, (m) => `${(parseInt(m) || 1) + 1} × `);
+      else if (out.filter((a) => a.id.startsWith('bld')).length < 4) out.push({ id, sev: 'warn', text: `${BUILDINGS[b.type].name} stalled`, detail: `Cannot build ${BUILDINGS[b.type].name}: ${why}.`, ...at(g.center(b)) });
+    }
   }
   // ---- stuck work orders
   for (const b of g.buildings.values()) {
@@ -592,6 +619,28 @@ export function computeAlerts(g: Game): Alert[] {
   // ---- the dead
   const dead = Array.from(g.items.values()).filter((i) => i.type === 'corpse' && i.dwarf && g.onGround(i));
   if (dead.length) out.push({ id: 'dead', sev: 'warn', text: `${dead.length} unburied`, detail: `The unburied dead upset everyone who sees them. Build coffins (Mason/Carpenter, then Build > Furniture > Coffin); anyone with the Haul labor will bury them.`, ...at(g.cellOf(dead[0])) });
+  // ---- farms with empty plots and no seeds
+  for (const z of g.zones.values()) {
+    if (z.kind !== 'farm') continue;
+    const empty = z.cells.filter((c) => !g.crops.has(c)).length;
+    if (empty < Math.max(1, z.cells.length / 2)) continue;
+    if (g.count((i) => i.type === 'seed' && i.sub === z.crop) > 0) continue;
+    const other = CROPS.find((p) => p.id !== z.crop && g.count((i) => i.type === 'seed' && i.sub === p.id) > 0);
+    out.push({ id: 'seed' + z.id, sev: 'warn', text: `${z.name}: no seeds`, detail: `${empty} empty plots and no ${plantOf(z.crop).name} seeds. Processing the plant (brew, cook, eat) gives seeds back.${other ? ` You do have ${other.name} seeds: click the farm to switch crop.` : ' Caravans sell seeds.'}`, ...at(z.cells[0]) });
+  }
+  // ---- stockpiles that cannot take what is lying around
+  const hauler = ds.find((u) => u.labors.haul > 0 && canWalk(u));
+  if (hauler) {
+    const cats = new Set<string>(), probs: string[] = [];
+    for (const id of g.looseItems()) {
+      const it = g.items.get(id);
+      if (!it || cats.has(ITEMS[it.type].cat)) continue;
+      cats.add(ITEMS[it.type].cat);
+      const t = tryHaul(g, hauler, it);
+      if (!isJob(t) && /stockpile/.test(t)) probs.push(t);
+    }
+    if (probs.length) out.push({ id: 'spfull', sev: 'warn', text: 'Stockpiles full', detail: `Items are being left where they lie: ${probs.slice(0, 4).join('; ')}. Make the stockpile bigger or add another (Zones > Stockpile). Food left outside a stockpile rots.` });
+  }
   // ---- no stockpile / tools
   if (!g.zonesOf('stockpile').length && g.tick > 300) out.push({ id: 'nostock', sev: 'warn', text: 'No stockpile', detail: 'Items are lying where they fell. Create a stockpile (Zones > Stockpile) so haulers gather everything in one place; food left outside rots.' });
   return out;

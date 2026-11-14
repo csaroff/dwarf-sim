@@ -31,7 +31,7 @@ export function cannotOrder(g: Game, u: Unit): string {
 export function optionsAt(g: Game, u: Unit, cell: number): Option[] {
   const out: Option[] = [];
   const no = cannotOrder(g, u);
-  const add = (label: string, t: Try) => out.push(isJob(t) ? { label, job: t } : { label, why: no || t });
+  const add = (label: string, t: Try) => out.push(!no && isJob(t) ? { label, job: t } : { label, why: no || (t as string) });
   const here = g.cellOf(u);
 
   // ---- creatures
@@ -86,7 +86,7 @@ export function optionsAt(g: Game, u: Unit, cell: number): Option[] {
   // ---- movement
   if (g.w.passable(cell)) {
     const ok = g.w.canReach(here, cell, false);
-    add(u.drafted ? 'Move here' : 'Go here', ok ? mkJob('move', 'Moving (your order)', cell) : g.w.dangerous(cell) ? 'too dangerous: deep water or magma' : 'no path there');
+    add(u.drafted ? 'Move here' : 'Go here', ok ? mkJob('move', 'Moving', cell) : g.w.dangerous(cell) ? 'too dangerous: deep water or magma' : 'no path there');
   } else if (!out.length) out.push({ label: 'Go here', why: 'Nobody can stand there' });
   return out;
 }

@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { MAT, T, TICKS_DAY } from '../src/sim/defs';
-import { computeAlerts } from '../src/sim/events';
+import { beginMood, computeAlerts } from '../src/sim/events';
 import { Game } from '../src/sim/game';
-import { DG, explainTask, placeBuilding, tryDesig } from '../src/sim/jobs';
+import { DG, canPlace, explainTask, placeBuilding, tryDesig } from '../src/sim/jobs';
 import { explainUnit, fallDamage } from '../src/sim/life';
 import { optionsAt, order, setDraft } from '../src/sim/orders';
 import { step } from '../src/sim/sim';
@@ -260,6 +260,112 @@ describe('unrealistic but exploitable mechanics', () => {
     run(g, 600, () => troll.state === 'caged');
     expect(troll.state).toBe('caged');
     expect(bait.dead).toBe(false);
+  });
+});
+
+test('building over a dig order is refused with a reason instead of silently cancelling it', () => {
+  const g = flatGame();
+  g.designate(cell(41, 41), DG.Stair);
+  const can = canPlace(g, 'still', 40, 40, 20);
+  expect(can.ok).toBe(false);
+  expect(!can.ok && can.why).toMatch(/"Carve stairs" order on this tile/);
+  expect(g.w.desig[cell(41, 41)]).toBe(DG.Stair);
+});
+
+describe('fighting and hunting', () => {
+  test('nobody hunts bare-handed: the hunter says what is missing, then fetches a spear', () => {
+    const g = flatGame();
+    const hunter = dwarf(g, 40, 40, ['hunt']);
+    const deer = g.addUnit('deer', cell(50, 40), 'wild');
+    deer.hunted = true;
+    run(g, 40);
+    expect(explainUnit(g, hunter).lines.join(' ')).toMatch(/needs a weapon to hunt with.*none in the fortress/);
+
+    g.spawnItem('spear', MAT.copper, cell(41, 41));
+    run(g, 3000, () => deer.dead);
+    expect(deer.dead).toBe(true);
+    expect(hunter.equip.weapon).toBeTruthy();
+    // the kill is left as a corpse for the butcher
+    expect(g.count((i) => i.type === 'corpse' && i.sub === 'deer')).toBe(1);
+  });
+
+  test('raiders pause the game; militia fight on their own while civilians run', () => {
+    const g = flatGame();
+    const soldier = dwarf(g, 40, 40, []);
+    soldier.militia = true;
+    soldier.skills.fight = 900;
+    give(g, soldier, 'axe', 'weapon', MAT.iron);
+    const farmer = dwarf(g, 42, 42, []);
+    const gob = g.addUnit('goblin', cell(52, 40), 'enemy');
+
+    // a raid announcement asks for the player's attention (the UI pauses and jumps to it)
+    g.say('An ambush!', 'death', g.cellOf(gob), true);
+    expect(g.attention?.text).toBe('An ambush!');
+
+    run(g, 60);
+    expect(soldier.job?.type).toBe('attack');
+    expect(explainUnit(g, soldier).status).toMatch(/Answering the alarm/);
+    expect(farmer.job?.type === 'flee' || g.cellOf(farmer) !== cell(42, 42)).toBe(true);
+    run(g, 1500, () => gob.dead);
+    expect(gob.dead).toBe(true);
+    expect(soldier.dead).toBe(false);
+  });
+});
+
+test('an enemy that cannot reach anyone is reported as cut off, not as an attack', () => {
+  const g = flatGame();
+  dwarf(g, 40, 40, []);
+  // a troll sealed in a chamber below, with no stairs or ramps leading out
+  room(g, 60, 60, 62, 62, 17);
+  const troll = g.addUnit('troll', cell(61, 61, 17), 'enemy');
+  g.w.discover(cell(61, 61, 17));
+  expect(alertText(g)).toMatch(/1 lurking, cut off.*nobody needs to be drafted/s);
+  expect(alertText(g)).not.toMatch(/Draft dwarves/);
+
+  // a stairwell down to it turns it into a real threat
+  for (const z of [20, 19, 18, 17]) g.w.setTile(cell(60, 59, z), T.Stair);
+  expect(alertText(g)).toMatch(/1 hostile.*Draft dwarves/s);
+  void troll;
+});
+
+describe('strange moods', () => {
+  test('a moody dwarf claims a workshop, gathers what the fortress has, and makes an artifact', () => {
+    const g = flatGame();
+    const u = dwarf(g, 40, 40, []);
+    const shop = g.addBuilding('craftsdwarf', 44, 39, 20);
+    shop.built = true;
+    // the fortress owns only stone, wood and cloth: the mood must ask for things that can actually be found
+    g.spawnItem('boulder', MAT.granite, cell(38, 38), 3);
+    g.spawnItem('log', MAT.oak, cell(38, 40), 3);
+    g.spawnItem('cloth', MAT.cloth, cell(38, 42), 3);
+
+    beginMood(g, u);
+    expect(u.state).toBe('mood');
+    expect(u.moodNeeds!.every((n) => ['boulder', 'log', 'cloth'].includes(n.type))).toBe(true);
+    // the panel says what is going on and what is still missing
+    expect(explainUnit(g, u).lines.join(' ')).toMatch(/strange mood.*Needs:/s);
+
+    // moody dwarves do not stop to eat or drink, so the mood itself must not starve them
+    const thirst = u.thirst;
+    run(g, TICKS_DAY * 4, () => u.state !== 'mood');
+    expect(u.dead).toBe(false);
+    expect(u.state).toBe('');
+    expect(u.thirst).toBeLessThan(thirst + 60);
+    expect(g.count((i) => i.type === 'artifact')).toBe(1);
+    expect(g.ev.artifacts).toBe(1);
+    expect(shop.worker).toBe(0);
+  });
+
+  test('a mood that cannot be satisfied says what is missing before the dwarf goes insane', () => {
+    const g = flatGame();
+    const u = dwarf(g, 40, 40, []);
+    g.spawnItem('boulder', MAT.granite, cell(38, 38), 3);
+    g.spawnItem('log', MAT.oak, cell(38, 40), 3);
+    beginMood(g, u); // no workshop anywhere
+    run(g, 100);
+    expect(alertText(g)).toMatch(/strange mood.*needs a workshop/s);
+    run(g, TICKS_DAY * 9, () => u.state !== 'mood');
+    expect(['berserk', 'melancholy']).toContain(u.state);
   });
 });
 
