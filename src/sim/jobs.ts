@@ -8,7 +8,7 @@
 // Because every task goes through a tryX function, the game can always answer "why is nobody doing this?"
 // (explainTask) and "why can't this dwarf do it?" (the right-click menu shows the reason).
 import {
-  BUILDINGS, CREATURES, CROPS, F, ITEMS, TRAP_WEAPONS, Ing, LABORS, LABOR_NAME, Labor, MAT, MATS, PLANT, PLANTS, RECIPES, Recipe, T, TICKS_DAY, plantOf, matOf,
+  BUILDINGS, CREATURES, CROPS, F, ITEMS, QUALITY, TRAP_WEAPONS, Ing, LABORS, LABOR_NAME, Labor, MAT, MATS, PLANT, PLANTS, RECIPES, Recipe, T, TICKS_DAY, plantOf, matOf,
 } from './defs';
 import { Game, MAX_AMMO, MAX_STACK } from './game';
 import type { Bill, Building, Can, Item, Job, Unit, Zone } from './types';
@@ -71,9 +71,19 @@ function digOut(g: Game, cell: number, tile: number, dropAt = cell) {
   const w = g.w;
   if (w.tile[cell] === T.Wall) digDrop(g, cell, dropAt);
   w.flag[cell] &= ~(F.Smooth | F.Engraved | F.Built);
+  g.engravings.delete(cell);
   w.plant[cell] = 0;
   w.setTile(cell, tile);
   g.reveal(cell);
+}
+
+const SCENES = ['dwarves striking the earth', 'a dwarf raising a mug of ale', 'a plump helmet', 'a carp devouring a fisherdwarf', 'a pick crossed with an anvil', 'a wheel of cheese', 'a bearded dwarf deep in thought', 'mountains under a full moon', 'a dwarf fleeing an elephant', 'a cat sitting on a throne'];
+/** What a mason carves: usually a scene from the fortress's own history, signed and graded by skill. */
+function engravingText(g: Game, u: Unit): string {
+  const q = QUALITY[g.qualityRoll(u, 'mason')];
+  const lead = `${/^[aeiou]/.test(q || 'engraving') ? 'An' : 'A'} ${q ? q + ' ' : ''}engraving by ${u.name}`;
+  const h = g.history.length && g.rng.chance(0.7) ? g.rng.pick(g.history) : null;
+  return h ? `${lead}. It relates to the events of ${g.dateString(h.tick, true)}: "${h.text}"` : `${lead}: an image of ${g.rng.pick(SCENES)}.`;
 }
 
 /** Things in a cell with nothing under them fall. */
@@ -266,6 +276,7 @@ export function applyDesig(g: Game, u: Unit, cell: number) {
       break;
     case DG.Engrave:
       w.flag[cell] |= F.Engraved;
+      g.engravings.set(cell, engravingText(g, u));
       w.version++;
       break;
     case DG.Remove: {

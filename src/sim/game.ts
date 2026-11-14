@@ -33,6 +33,8 @@ export class Game {
   zones = new Map<number, Zone>();
   log: LogEntry[] = [];
   crops = new Map<number, Crop>();
+  history: { tick: number; text: string }[] = [];
+  engravings = new Map<number, string>(); // cell -> what is carved there
   desigs = new Set<number>();
   fortName = '';
   embark = { x: 0, y: 0, z: 0 };
@@ -84,12 +86,20 @@ export class Game {
   get year() {
     return START_YEAR + Math.floor(this.tick / TICKS_YEAR);
   }
-  dateString() {
-    const dayOfYear = this.day % (DAYS_SEASON * 4);
+  /** the date at a tick (default: now); short = without season and hour */
+  dateString(tick = this.tick, short = false) {
+    const day = Math.floor(tick / TICKS_DAY);
+    const dayOfYear = day % (DAYS_SEASON * 4);
     const month = Math.floor(dayOfYear / (DAYS_SEASON / 3));
     const dom = (dayOfYear % (DAYS_SEASON / 3)) + 1;
-    const hour = Math.floor(((this.tick % TICKS_DAY) / TICKS_DAY) * 24);
-    return `${dom}${['st', 'nd', 'rd', 'th'][Math.min(dom - 1, 3)]} ${MONTHS[month]} ${this.year}, ${SEASONS[this.season]} · ${String(hour).padStart(2, '0')}:00`;
+    const hour = Math.floor(((tick % TICKS_DAY) / TICKS_DAY) * 24);
+    const date = `${dom}${['st', 'nd', 'rd', 'th'][Math.min(dom - 1, 3)]} ${MONTHS[month]} ${START_YEAR + Math.floor(tick / TICKS_YEAR)}`;
+    return short ? date : `${date}, ${SEASONS[Math.floor(tick / TICKS_SEASON) % 4]} · ${String(hour).padStart(2, '0')}:00`;
+  }
+  /** Write an event into the fortress's history: it shows in Legends, and masons engrave scenes from it. */
+  chronicle(text: string) {
+    this.history.push({ tick: this.tick, text });
+    if (this.history.length > 400) this.history.splice(0, 100);
   }
 
   /** The moon is full for the first part of the last day of every 12-day cycle. Werebeasts change. */
@@ -113,6 +123,7 @@ export class Game {
     }
     this.log.push(e);
     if (urgent) this.attention = e;
+    if (urgent || kind === 'death') this.chronicle(text); // the things worth remembering
     if (this.log.length > 600) this.log.splice(0, 150);
   }
 
@@ -734,10 +745,12 @@ export class Game {
       else if (r.cavern) {
         this.ev.cavern++;
         this.say(this.ev.cavern === 1 ? 'You have discovered an expansive cavern deep underground!' : 'You have discovered another cavern!', 'event', cell);
+        this.chronicle(this.ev.cavern === 1 ? 'The miners broke through into a great cavern.' : 'A second, deeper cavern was discovered.');
       }
     }
     if (r.magma && !this.ev.magmaSeen) {
       this.ev.magmaSeen = true;
+      this.chronicle('The miners struck magma.');
       this.say('You have struck magma! Praise the miners! (Magma smelters and forges need no fuel.)', 'event', cell);
     }
     if (r.hollow && !this.ev.hell) this.onHell(cell);
@@ -793,7 +806,7 @@ export class Game {
       v: 1, seed: this.seed, rs: this.rng.s, tick: this.tick, nextId: this.nextId, fortName: this.fortName, embark: this.embark, ev: this.ev, caravan: this.caravan,
       world: this.w.save(), items: Array.from(this.items.values()), units: Array.from(this.units.values()), buildings: Array.from(this.buildings.values()),
       zones: Array.from(this.zones.values()), crops: Array.from(this.crops.entries()), log: this.log.slice(-150), claims: Array.from(this.claims.entries()),
-      spRes: Array.from(this.spRes.entries()),
+      spRes: Array.from(this.spRes.entries()), history: this.history, engravings: Array.from(this.engravings.entries()),
     });
   }
   static deserialize(json: string): Game {
@@ -803,6 +816,7 @@ export class Game {
       w: new World(), rng: new Rng(1), seed: d.seed, tick: d.tick, nextId: d.nextId, fortName: d.fortName, embark: d.embark, ev: d.ev, caravan: d.caravan, wealth: 0,
       items: new Map(), units: new Map(), buildings: new Map(), zones: new Map(), log: d.log, crops: new Map(d.crops), desigs: new Set(),
       itemsAt: new Map(), bAt: new Map(), zoneAt: new Map(), claims: new Map(d.claims), spRes: new Map(d.spRes), alerts: [], unitsAt: new Map(),
+      history: d.history || [], engravings: new Map(d.engravings || []),
       attention: null, haulCache: [], haulCacheTick: -999, stockCache: {}, stockCacheTick: -999, onHell: () => {},
     });
     g.rng.s = d.rs;

@@ -61,6 +61,7 @@ export function embark(g: Game) {
   g.ev.nextNecro = TICKS_DAY * 75;
   g.ev.nextMega = TICKS_DAY * 110;
   g.say(`Strike the earth! Seven dwarves have arrived to found ${g.fortName}.`, 'event', at);
+  g.chronicle(`Seven dwarves founded ${g.fortName}.`);
   g.say('Dwarves need alcohol to function. Dig in, plant a farm, and build a Still before the barrels run dry.', 'info');
 }
 
@@ -493,6 +494,7 @@ RUN.mood = (g, u, j) => {
   const skill = g.rng.pick(['craft', 'mason', 'carpenter', 'smith']);
   u.skills[skill] = 1500;
   g.think(u, 'created a legendary artifact', 30, 30);
+  g.chronicle(`${u.name} created the artifact ${name}.`);
   g.say(`${u.name} has created ${g.itemName(art)}! ${first(u)} is now a legendary ${skill === 'craft' ? 'craftsdwarf' : skill}.`, 'event', c);
   return 'done';
 };

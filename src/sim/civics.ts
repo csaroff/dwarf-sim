@@ -57,6 +57,7 @@ export function tickCivics(g: Game) {
     if (!able.length) return;
     mayor = able.reduce((a, b) => (b.mood > a.mood ? b : a));
     e.mayor = mayor.id;
+    g.chronicle(`${mayor.name} was elected mayor.`);
     e.nextMandate = t + TICKS_DAY * 8;
     g.think(mayor, 'was elected mayor', 8, 12);
     g.say(`${mayor.name} has been elected mayor of ${g.fortName.split(',')[0]}. A mayor expects decent quarters, and will issue mandates.`, 'event', g.cellOf(mayor));

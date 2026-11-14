@@ -9,7 +9,7 @@ import { newGame, step } from '../sim/sim';
 import type { Option, Unit, Zone } from '../sim/types';
 import { WH, X, Y, Z, idx } from '../sim/world';
 import { CAVERN1_Z, CAVERN2_Z, MAGMA_Z } from '../sim/worldgen';
-import { HELP, buildingPanel, cellPanel, esc, laborsModal, stocksModal, tileText, tradeModal, unitPanel, zonePanel } from './panels';
+import { HELP, buildingPanel, cellPanel, esc, laborsModal, legendsModal, stocksModal, tileText, tradeModal, unitPanel, zonePanel } from './panels';
 import { Overlay, Renderer } from './render';
 import { loadSave, writeSave } from './save';
 
@@ -24,7 +24,7 @@ let speed = 1; // 0 paused, 1, 2, 3
 const TPF = [0, 0.5, 2, 8]; // sim ticks per frame
 let tickDebt = 0;
 const ov: Overlay = { hover: -1, selUnits: new Set(), selBuilding: 0, selCell: -1, selZone: 0, rect: null };
-let modal: '' | 'labors' | 'stocks' | 'trade' | 'help' = '';
+let modal: '' | 'labors' | 'stocks' | 'trade' | 'help' | 'legends' = '';
 let linking = 0; // lever id being linked
 const sell = new Set<number>(), buy = new Set<number>();
 let tradeMsg = '';
@@ -349,6 +349,7 @@ window.addEventListener('keydown', (e) => {
   } else if (k === 'r') act('draft', '');
   else if (k === 'l') modal = modal === 'labors' ? '' : 'labors';
   else if (k === 'k') modal = modal === 'stocks' ? '' : 'stocks';
+  else if (k === 'j') modal = modal === 'legends' ? '' : 'legends';
   else if (k === 't') modal = modal === 'trade' ? '' : 'trade';
   else if (k === 'h' || k === '?') modal = modal === 'help' ? '' : 'help';
   else if (k === 'm') act('music', '');
@@ -552,7 +553,7 @@ function ui() {
     <span class="sp"></span>
     ${b('▼', 'z', -1, false, 'Level down (Q)')}<span title="0 is the level the wagon arrived on. Shift+wheel also changes level; the gauge on the left jumps to any level">Level <b>${lvl > 0 ? '+' : ''}${lvl}</b> <span class="sub">${WHERE[where(R.cam.z)]}</span></span>${b('▲', 'z', 1, false, 'Level up (E)')}
     ${b('❚❚', 'speed', 0, speed === 0, 'Pause (Space)')}${b('▶', 'speed', 1, speed === 1)}${b('▶▶', 'speed', 2, speed === 2)}${b('▶▶▶', 'speed', 3, speed === 3)}
-    ${b('Labors', 'modal', 'labors', modal === 'labors', 'L')}${b('Stocks', 'modal', 'stocks', modal === 'stocks', 'K')}${b('Trade', 'modal', 'trade', modal === 'trade' || g.caravan?.state === 'trading', 'T')}
+    ${b('Labors', 'modal', 'labors', modal === 'labors', 'L')}${b('Legends', 'modal', 'legends', modal === 'legends', 'The history of the fortress (J)')}${b('Stocks', 'modal', 'stocks', modal === 'stocks', 'K')}${b('Trade', 'modal', 'trade', modal === 'trade' || g.caravan?.state === 'trading', 'T')}
     ${b(R.ascii ? 'ASCII' : 'Tiles', 'ascii', '', false, 'Switch between drawn tiles and classic ASCII (G)')}${b('♫', 'music', '', !music.paused, 'Music (M)')}${b('Save', 'save', '')}${b('?', 'modal', 'help', false, 'Help (H)')}${b('Menu', 'menu', '')}`);
 
   set('roster', ds.map((u) => {
@@ -596,7 +597,7 @@ function ui() {
 
   const m = $('modal');
   m.style.display = modal ? 'flex' : 'none';
-  if (modal) set('modalwin', modal === 'labors' ? laborsModal(g) : modal === 'stocks' ? stocksModal(g) : modal === 'trade' ? tradeModal(g, sell, buy, tradeMsg) : HELP);
+  if (modal) set('modalwin', modal === 'labors' ? laborsModal(g) : modal === 'stocks' ? stocksModal(g) : modal === 'trade' ? tradeModal(g, sell, buy, tradeMsg) : modal === 'legends' ? legendsModal(g) : HELP);
   hint();
 }
 function hint() {

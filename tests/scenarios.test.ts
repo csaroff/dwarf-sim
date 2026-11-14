@@ -937,6 +937,31 @@ describe('things that come in the night', () => {
   });
 });
 
+test('the fortress keeps a history, and masons engrave scenes from it', () => {
+  const g = flatGame();
+  const mason = dwarf(g, 40, 40, ['mason']);
+  mason.skills.mason = 1500;
+  g.chronicle('Urist Testbeard wrestled a carp and lost.');
+  // a smoothed granite wall to carve
+  const wall = cell(42, 40);
+  g.w.setTile(wall, T.Wall, MAT.granite);
+  g.w.flag[wall] |= 4;
+  g.designate(wall, DG.Engrave);
+  run(g, 1500, () => g.engravings.has(wall));
+
+  const text = g.engravings.get(wall)!;
+  expect(text).toMatch(new RegExp(`engraving by ${mason.name}`));
+  // a legendary mason's work is graded, and it shows either the remembered event or a stock scene
+  expect(text).toMatch(/well-crafted|finely-crafted|superior|exceptional|masterful/);
+  expect(text).toMatch(/wrestled a carp and lost|an image of/);
+
+  // history survives a save, and mining the wall out removes the carving
+  const g2 = Game.deserialize(g.serialize());
+  expect(g2.history[0].text).toBe('Urist Testbeard wrestled a carp and lost.');
+  expect(g2.engravings.get(wall)).toBe(text);
+  expect(g2.dateString(g2.history[0].tick, true)).toBe('1st Granite 250');
+});
+
 test('save and load round-trips a running fortress', () => {
   const g = flatGame();
   const u = dwarf(g, 40, 40, ['haul']);

@@ -201,6 +201,7 @@ export function tileText(g: Game, cell: number): string {
 export function cellPanel(g: Game, cell: number): string {
   const w = g.w;
   let h = `<div class="box"><h2><span>${esc(cap(tileText(g, cell)))}</span>${btn('×', 'deselect')}</h2><div class="sub">x ${X(cell)}, y ${Y(cell)}, level ${Z(cell) - g.embark.z} · ${w.revealed(cell) ? (w.outside(cell) ? 'outdoors' : 'underground') : ''}</div>`;
+  if (w.flag[cell] & F.Engraved && g.engravings.get(cell)) h += whys([g.engravings.get(cell)!]);
   const d = w.desig[cell];
   if (d) {
     h += `<div class="status warn">Designated: ${DG_NAME[d]}</div>`;
@@ -247,6 +248,23 @@ export function laborsModal(g: Game): string {
     h += '</tr>';
   }
   return h + '</table>';
+}
+/** The fortress's history, newest first. */
+export function legendsModal(g: Game): string {
+  let h = `<h2><span>Legends of ${esc(g.fortName)}</span>${btn('Close', 'closemodal')}</h2><div class="sub" style="margin-bottom:6px;white-space:normal;max-width:760px">What has happened here. Masons draw on these events when they engrave: click an engraved wall to read what it shows.</div>`;
+  if (!g.history.length) return h + '<div class="sub">Nothing worth carving in stone has happened yet.</div>';
+  let year = '';
+  h += '<div class="help" style="max-width:820px">';
+  for (const e of g.history.slice().reverse()) {
+    const date = g.dateString(e.tick, true);
+    const y = date.split(' ').pop()!;
+    if (y !== year) {
+      year = y;
+      h += `<h3>Year ${y}</h3>`;
+    }
+    h += `<p><span class="sub">${date.replace(' ' + y, '')}</span> — ${esc(e.text)}</p>`;
+  }
+  return h + '</div>';
 }
 export function stocksModal(g: Game): string {
   const by = new Map<string, Map<string, { n: number; v: number }>>();
@@ -308,4 +326,4 @@ export const HELP = `<h2><span>How to play</span><button data-a="closemodal">Clo
 <h3>Things you can exploit</h3>
 <p>• A lowering <b>drawbridge</b> obliterates anything underneath it. Anything.<br>• <b>Cage traps</b> catch any hostile, regardless of size.<br>• Water + magma = obsidian. Floodgates + levers = plumbing (and drowning chambers).<br>• Muddy stone floors can be farmed. Magma forges need no fuel. Goblins path through the only open door.</p>
 <h3>Keys</h3>
-<p><kbd>WASD</kbd>/arrows pan · <kbd>Q</kbd> <kbd>E</kbd> (or Shift+wheel, or the gauge on the left) level down/up · wheel zoom · <kbd>Space</kbd> pause · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> speed · <kbd>R</kbd> draft · <kbd>L</kbd> labors · <kbd>K</kbd> stocks · <kbd>T</kbd> trade · <kbd>M</kbd> music · <kbd>G</kbd> tiles / ASCII · <kbd>Esc</kbd> cancel tool / deselect · <kbd>F</kbd> jump to selected · <kbd>H</kbd> this help</p></div>`;
+<p><kbd>WASD</kbd>/arrows pan · <kbd>Q</kbd> <kbd>E</kbd> (or Shift+wheel, or the gauge on the left) level down/up · wheel zoom · <kbd>Space</kbd> pause · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> speed · <kbd>R</kbd> draft · <kbd>L</kbd> labors · <kbd>K</kbd> stocks · <kbd>T</kbd> trade · <kbd>J</kbd> legends · <kbd>M</kbd> music · <kbd>G</kbd> tiles / ASCII · <kbd>Esc</kbd> cancel tool / deselect · <kbd>F</kbd> jump to selected · <kbd>H</kbd> this help</p></div>`;

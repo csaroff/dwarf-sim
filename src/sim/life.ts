@@ -39,6 +39,8 @@ export function killUnit(g: Game, u: Unit, cause: string, by?: Unit) {
   } else if (u.faction === 'fort') g.say(`${cap(g.unitName(u))} (tame) has ${cause}.`, 'bad', cell);
   else if (u.faction === 'enemy') g.say(`${cap(g.unitName(u))} has ${cause}.`, 'good', cell);
   else if (by && by.faction === 'fort') g.say(`${cap(g.unitName(u))} has ${cause}.`, 'combat', cell);
+  // the fall of something terrible is remembered
+  if (!u.isDwarf && u.faction === 'enemy' && (CREATURES[u.kind].where === 'mega' || ['beast', 'necromancer', 'werebeast', 'demon'].includes(u.kind))) g.chronicle(`${cap(g.unitName(u))} was slain${by ? ` by ${by.isDwarf ? by.name : g.unitName(by)}` : ''}.`);
   if (by) {
     by.kills++;
     if (by.isDwarf && u.faction === 'enemy') g.think(by, 'took joy in slaughter', 3);
