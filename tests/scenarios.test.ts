@@ -229,6 +229,54 @@ describe('z-levels and mining', () => {
   });
 });
 
+describe('damp and warm stone', () => {
+  test('a miner stops before breaking into hidden water, says so, and digs through only when told again', () => {
+    const g = flatGame();
+    const miner = dwarf(g, 40, 40, ['mine']);
+    give(g, miner, 'pick', 'pick');
+    // a corridor one level down, and beyond two tiles of rock an unseen flooded pocket
+    room(g, 38, 40, 41, 40, 19);
+    g.w.setTile(cell(40, 40, 19), T.Stair);
+    g.w.setTile(cell(40, 40, 20), T.Stair);
+    g.w.setTile(cell(44, 40, 19), T.Floor);
+    g.w.water[cell(44, 40, 19)] = 7;
+    const dry = cell(42, 40, 19), damp = cell(43, 40, 19);
+    g.designate(dry, DG.Dig);
+    g.designate(damp, DG.Dig);
+
+    // the first wall is dug; at the second he stops
+    run(g, 1500, () => g.w.desig[damp] === 0);
+    expect(g.w.tile[dry]).toBe(T.Floor);
+    expect(g.w.tile[damp]).toBe(T.Wall);
+    expect(g.attention?.text).toMatch(/Damp stone! .* stops digging: there is water on the other side.*designate it again/);
+    expect(g.w.water[dry]).toBe(0);
+
+    // told a second time, he breaks through and the water comes in
+    g.designate(damp, DG.Dig);
+    run(g, 1500, () => g.w.tile[damp] === T.Floor);
+    expect(g.w.tile[damp]).toBe(T.Floor);
+    // (one tile's worth of water spreads thin, so look along the whole corridor)
+    const flooded = () => [38, 39, 40, 41, 42, 43].reduce((n, x) => n + g.w.water[cell(x, 40, 19)], 0);
+    run(g, 60, () => flooded() > 0);
+    expect(flooded()).toBeGreaterThan(0);
+  });
+
+  test('magma is announced as warm stone', () => {
+    const g = flatGame();
+    const miner = dwarf(g, 40, 40, ['mine']);
+    give(g, miner, 'pick', 'pick');
+    room(g, 38, 40, 41, 40, 19);
+    g.w.setTile(cell(40, 40, 19), T.Stair);
+    g.w.setTile(cell(40, 40, 20), T.Stair);
+    g.w.setTile(cell(43, 40, 19), T.Floor);
+    g.w.magma[cell(43, 40, 19)] = 7;
+    g.designate(cell(42, 40, 19), DG.Dig);
+    run(g, 1500, () => g.desigs.size === 0);
+    expect(g.w.tile[cell(42, 40, 19)]).toBe(T.Wall);
+    expect(g.attention?.text).toMatch(/Warm stone! .* there is magma on the other side/);
+  });
+});
+
 describe('cave-ins', () => {
   test('a floor cut off on all four sides falls into the room below, onto whatever is there', () => {
     const g = flatGame();

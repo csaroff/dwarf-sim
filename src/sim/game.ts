@@ -35,6 +35,7 @@ export class Game {
   crops = new Map<number, Crop>();
   history: { tick: number; text: string }[] = [];
   engravings = new Map<number, string>(); // cell -> what is carved there
+  wetOk = new Set<number>(); // cells the miners have already warned about: digging there again is deliberate
   desigs = new Set<number>();
   fortName = '';
   embark = { x: 0, y: 0, z: 0 };
@@ -823,7 +824,7 @@ export class Game {
       w: new World(), rng: new Rng(1), seed: d.seed, tick: d.tick, nextId: d.nextId, fortName: d.fortName, embark: d.embark, ev: d.ev, caravan: d.caravan, wealth: 0,
       items: new Map(), units: new Map(), buildings: new Map(), zones: new Map(), log: d.log, crops: new Map(d.crops), desigs: new Set(),
       itemsAt: new Map(), bAt: new Map(), zoneAt: new Map(), claims: new Map(d.claims), spRes: new Map(d.spRes), alerts: [], unitsAt: new Map(),
-      history: d.history || [], engravings: new Map(d.engravings || []),
+      history: d.history || [], engravings: new Map(d.engravings || []), wetOk: new Set(),
       attention: null, haulCache: [], haulCacheTick: -999, stockCache: {}, stockCacheTick: -999, onHell: () => {},
     });
     g.rng.s = d.rs;

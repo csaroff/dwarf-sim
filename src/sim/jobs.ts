@@ -109,6 +109,27 @@ export function settle(g: Game, cell: number) {
     fallDamage(g, u, dz);
   }
 }
+/** Would digging here let water or magma in? Looks at what touches the cell, whether or not it has been seen. */
+export function fluidBehind(g: Game, cell: number, d: number): '' | 'water' | 'magma' {
+  const w = g.w;
+  const wet = (n: number) => (n < 0 || n >= w.tile.length || w.tile[n] === T.Wall ? '' : w.magma[n] > 0 ? 'magma' : w.water[n] >= 2 ? 'water' : '');
+  const cells = d === DG.Channel || d === DG.Ramp ? [cell, d === DG.Channel ? cell - WH : cell + WH] : [cell];
+  for (const c of cells) {
+    for (const n of [c - 1, c + 1, c - 96, c + 96]) {
+      if (cheb(n, c) !== 1 || Z(n) !== Z(c) || cells.includes(n)) continue;
+      const f = wet(n);
+      if (f) return f;
+    }
+    // fluid directly overhead comes down if there is no floor holding it up
+    const up = c + WH;
+    if (up < w.tile.length && !cells.includes(up) && (w.tile[up] === T.Open || w.tile[up] === T.Stair || d === DG.Stair || d === DG.Ramp)) {
+      const f = wet(up);
+      if (f) return f;
+    }
+  }
+  return '';
+}
+
 // ------------------------------------------------------------------ cave-ins
 const CAVE_LIMIT = 400;
 /**
@@ -1236,6 +1257,17 @@ export const RUN: Record<string, Runner> = {
     if (!validDesig(g, cell, d).ok) {
       g.designate(cell, 0);
       return 'done';
+    }
+    // damp or warm stone: a miner will not break through into water or magma without being told twice
+    if (j.t === 0 && DG_LABOR[d] === 'mine' && !g.wetOk.has(cell)) {
+      const wet = fluidBehind(g, cell, d);
+      if (wet) {
+        g.wetOk.add(cell);
+        g.designate(cell, 0);
+        const what = wet === 'magma' ? 'Warm stone' : 'Damp stone';
+        g.say(`${what}! ${first(u)} stops digging: there is ${wet} on the other side. The order here has been cancelled; designate it again to break through anyway.`, 'bad', cell, true);
+        return 'done';
+      }
     }
     if (++j.t < desigTime(g, u, cell, d)) return 'run';
     applyDesig(g, u, cell);
