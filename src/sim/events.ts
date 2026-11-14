@@ -6,7 +6,7 @@ import {
   DG_LABOR, DG_NAME, RUN, assign, canWalk, endJob, explainTask, fetch, isJob, needsTending, tryBuild, tryDesig, tryHaul, tryRescue, walk,
 } from './jobs';
 import { SOBER_SLOW, downReason, killUnit } from './life';
-import { civicAlerts, tickCivics } from './civics';
+import { civicAlerts, petsAdopt, tickCivics } from './civics';
 import { machineAlerts } from './machines';
 import { nightAlerts, tickNight } from './night';
 import type { Alert, Building, Item, Job, Unit } from './types';
@@ -579,6 +579,7 @@ function nature(g: Game) {
       for (const d of g.dwarves()) if (dist(g.cellOf(d), g.cellOf(it)) < 12) g.think(d, 'saw the rotting, unburied body of a friend', -5, 2);
     }
   }
+  petsAdopt(g);
   // livestock: birds lay, and where there are two of a kind there will sooner or later be three
   const tame = Array.from(g.units.values()).filter((u) => u.faction === 'fort' && !u.isDwarf && !u.dead && u.state !== 'caged');
   if (g.count((i) => i.type === 'egg') < 40) for (const u of tame) if (CREATURES[u.kind].eggs && g.rng.chance(0.02)) g.spawnItem('egg', MAT.none, g.cellOf(u), 1, { sub: CREATURES[u.kind].name });

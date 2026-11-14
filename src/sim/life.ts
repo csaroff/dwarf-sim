@@ -1,6 +1,6 @@
 // Life: needs, health, combat, and the per-tick brains of dwarves and creatures.
 import { BUILDINGS, CREATURES, ITEMS, MAT, MATS, PARTS, PART_W, TICKS_DAY } from './defs';
-import { maybeMarry, mourn, quartersProblem } from './civics';
+import { maybeMarry, mourn, petsOf, quartersProblem } from './civics';
 import { Game, MOON_TICKS } from './game';
 import {
   RUN, assign, canWalk, endJob, explainTask, findWork, hook, isJob, moveDelay, roomQuality, needsFeeding, needsRest, needsTending, runJob, tryDrink, tryEat, tryRescue, tryRest,
@@ -39,7 +39,11 @@ export function killUnit(g: Game, u: Unit, cause: string, by?: Unit) {
     g.ev.deaths++;
     for (const o of g.dwarves()) g.think(o, 'lost a friend', -6, 8);
     mourn(g, u);
-  } else if (u.faction === 'fort') g.say(`${cap(g.unitName(u))} (tame) has ${cause}.`, 'bad', cell);
+  } else if (u.faction === 'fort') {
+    g.say(`${cap(g.unitName(u))} (tame) has ${cause}.`, 'bad', cell);
+    const master = g.units.get(u.owner || 0);
+    if (master && master.isDwarf && !master.dead) g.think(master, 'lost a beloved pet', -8, 10);
+  }
   else if (u.faction === 'enemy') g.say(`${cap(g.unitName(u))} has ${cause}.`, 'good', cell);
   else if (by && by.faction === 'fort') g.say(`${cap(g.unitName(u))} has ${cause}.`, 'combat', cell);
   // the fall of something terrible is remembered
@@ -554,7 +558,7 @@ function slowTick(g: Game, u: Unit) {
       const b = g.buildingAt(c);
       if (b && b.built && b.type === 'statue') g.think(u, 'admired a fine statue', 3 + b.q);
       if (g.w.flag[c] & 8) g.think(u, 'admired a tasteful engraving', 2);
-      if (g.unitsIn(c).some((o) => o.kind === 'cat' || o.kind === 'dog')) g.think(u, 'petted an animal', 2);
+      if (g.unitsIn(c).some((o) => o.kind === 'cat' || o.kind === 'dog' || o.kind === 'war_dog')) g.think(u, 'petted an animal', 2);
     }
   }
   // thoughts -> mood
@@ -1173,8 +1177,11 @@ function petTick(g: Game, u: Unit) {
         const z = pastures[u.id % pastures.length];
         c = z.cells[g.rng.int(z.cells.length)];
       }
+      // a pet keeps close to its dwarf
+      const master = !u.raised ? g.units.get(u.owner || 0) : undefined;
+      if (master && master.isDwarf && !master.dead) c = g.cellOf(master);
       if (!g.w.connected(here, c)) c = here;
-      u.path = g.w.findPath(here, g.randomNear(c, CREATURES[u.kind].size >= 0.7 ? 2 : 5), false);
+      u.path = g.w.findPath(here, g.randomNear(c, master ? 2 : CREATURES[u.kind].size >= 0.7 ? 2 : 5), false);
     }
   }
   const t = g.units.get(u.target);
@@ -1245,6 +1252,8 @@ export function explainUnit(g: Game, u: Unit): Explain {
     } else e.status = u.faction === 'merchant' ? 'Trading' : 'Wandering';
     if (u.hunted) e.lines.push('Marked for hunting. ' + explainTask(g, 'hunt', (d) => (d.labors.hunt ? 'ok' : 'x'), 'u' + u.id));
     if (u.slaughter) e.lines.push('Marked for slaughter.');
+    const master = u.faction === 'fort' ? g.units.get(u.owner || 0) : undefined;
+    if (master && master.isDwarf && !master.dead) e.lines.push(`Pet of ${master.name}: follows them about. Its death would grieve them.`);
     if (u.train) e.lines.push('War training — ' + explainTask(g, 'hunt', (d) => tryTrain(g, d, u), 'u' + u.id));
     if (u.faction === 'fort') {
       const d = CREATURES[u.kind];
@@ -1323,6 +1332,8 @@ export function explainUnit(g: Game, u: Unit): Explain {
   if (u.sober > SOBER_SICK) e.lines.push(`⚠ ${days(u.sober)} days without alcohol: withdrawal is killing them. Brew drinks at a Still!`);
   else if (u.sober > SOBER_SLOW) e.lines.push(`⚠ ${days(u.sober)} days without alcohol: working and walking slowly.`);
   if (u.militia && !g.zonesOf('barracks').length) e.lines.push('Militia, but there is no barracks to train in: fighting skill only grows in real fights (Zones > Barracks).');
+  const pets = petsOf(g, u);
+  if (pets.length) e.lines.push(`Pet: ${pets.map((p) => `${p.name} the ${CREATURES[p.kind].name}`).join(', ')}.`);
   const mate = g.units.get(u.spouse || 0);
   if (mate && !mate.dead) e.lines.push(`Married to ${mate.name}.`);
   const kids = g.dwarves().filter((o) => o.parents?.includes(u.id));

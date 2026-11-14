@@ -40,6 +40,41 @@ export function issueMandate(g: Game, type?: string) {
   g.say(`${mayor.name}, Mayor, has mandated the making of ${n} ${name}. (Due in 14 days; make them at ${where}.)`, 'event', g.cellOf(mayor));
 }
 
+// ------------------------------------------------------------------ pets
+const PET_KINDS = ['cat', 'dog', 'war_dog'];
+export const petsOf = (g: Game, d: Unit): Unit[] => Array.from(g.units.values()).filter((u) => u.faction === 'fort' && !u.isDwarf && !u.dead && u.owner === d.id);
+/** A cat or dog takes to a dwarf: it follows them about, and its death will be felt. */
+export function adopt(g: Game, pet: Unit, d: Unit) {
+  pet.owner = d.id;
+  g.think(d, 'was adopted by a new pet', 4, 6);
+  g.say(pet.kind === 'cat' ? `${pet.name} the cat has adopted ${d.name}.` : `${d.name} has taken ${pet.name} the ${pet.kind === 'war_dog' ? 'war dog' : 'dog'} as a pet.`, 'info', g.cellOf(pet));
+}
+/** now and then an unowned cat or dog picks the nearest dwarf who has no pet */
+export function petsAdopt(g: Game, chance = 0.03) {
+  const owners = new Set<number>();
+  const strays: Unit[] = [];
+  for (const u of g.units.values()) {
+    if (u.faction !== 'fort' || u.isDwarf || u.dead) continue;
+    if (u.owner && g.units.get(u.owner)?.isDwarf) owners.add(u.owner);
+    else if (PET_KINDS.includes(u.kind) && u.state !== 'caged') strays.push(u);
+  }
+  for (const pet of strays) {
+    if (!g.rng.chance(chance)) continue;
+    let best: Unit | null = null, bd = 13;
+    for (const d of g.dwarves()) {
+      if (owners.has(d.id) || d.child || d.state || d.z !== pet.z) continue;
+      const dx = Math.max(Math.abs(d.x - pet.x), Math.abs(d.y - pet.y));
+      if (dx < bd) {
+        best = d;
+        bd = dx;
+      }
+    }
+    if (!best) continue;
+    adopt(g, pet, best);
+    owners.add(best.id);
+  }
+}
+
 // ------------------------------------------------------------------ families
 export const CHILDHOOD = TICKS_DAY * 24;
 /** Two unmarried adults who have just spent an evening together may decide to marry. */

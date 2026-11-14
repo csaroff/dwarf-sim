@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { MAT, PLANT, T, TICKS_DAY, TICKS_YEAR } from '../src/sim/defs';
 import { beast, beginMood, computeAlerts, raid, trade } from '../src/sim/events';
 import { Game, MOON_DAYS } from '../src/sim/game';
-import { birth, issueMandate, maybeMarry } from '../src/sim/civics';
+import { birth, issueMandate, maybeMarry, petsAdopt } from '../src/sim/civics';
 import { megabeast, necroSiege, snatcher, werebeast } from '../src/sim/night';
 import { DG, canPlace, explainTask, placeBuilding, toggleLever, tryDesig } from '../src/sim/jobs';
 import { TERRITORY, explainUnit, fallDamage, killUnit, lineOfSight } from '../src/sim/life';
@@ -934,6 +934,30 @@ describe('goblin snatchers', () => {
     expect(g.units.has(gob.id)).toBe(false);
     expect(g.history.some((h) => /has escaped with .*The child is gone/.test(h.text))).toBe(true);
     expect(a.thoughts.some((t) => t.text === 'had a child stolen by goblins')).toBe(true);
+  });
+});
+
+describe('pets', () => {
+  test('a cat adopts a dwarf, follows them across the map, and is mourned when it dies', () => {
+    const g = flatGame();
+    const u = dwarf(g, 40, 40, []);
+    const stranger = dwarf(g, 80, 80, []);
+    const cat = g.addUnit('cat', cell(42, 40), 'fort');
+    cat.name = 'Mittens';
+    petsAdopt(g, 1);
+    expect(cat.owner).toBe(u.id); // the nearer dwarf, not the one across the map
+    expect(g.log.some((l) => l.text === `Mittens the cat has adopted ${u.name}.`)).toBe(true);
+    expect(explainUnit(g, u).lines.join(' ')).toMatch(/Pet: Mittens the cat/);
+    expect(explainUnit(g, cat).lines.join(' ')).toMatch(new RegExp(`Pet of ${u.name}`));
+
+    // the dwarf is sent far away; the cat comes too
+    order(g, u, optionsAt(g, u, cell(70, 40)).find((o) => o.label === 'Go here')!);
+    run(g, 1500, () => g.cellOf(u) === cell(70, 40) && dist(g.cellOf(cat), g.cellOf(u)) <= 4);
+    expect(dist(g.cellOf(cat), g.cellOf(u))).toBeLessThanOrEqual(4);
+
+    killUnit(g, cat, 'been crushed by a drawbridge');
+    expect(u.thoughts.some((t) => t.text === 'lost a beloved pet')).toBe(true);
+    expect(stranger.thoughts.some((t) => t.text === 'lost a beloved pet')).toBe(false);
   });
 });
 
