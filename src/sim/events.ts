@@ -229,6 +229,9 @@ export function beast(g: Game, at?: number): Unit | null {
   // it prowls the cavern it woke in, and comes up after the fortress only once that is big enough to draw it
   // (and never in the first year: a young fortress gets to meet it on its own terms, by digging down)
   if (g.strength() < 25 || g.tick < TICKS_YEAR) u.home = c;
+  // roused, it kills its fill (about a fifth of the fortress) and then goes back down
+  u.den = c;
+  u.fill = Math.max(3, Math.round(g.strength() / 5));
   const [form, shape] = g.rng.pick(BEAST_FORMS);
   const [stuff, colour, armor, hpMul] = g.rng.pick(BEAST_STUFF);
   const [warning, breath] = g.rng.pick(BEAST_POWERS);

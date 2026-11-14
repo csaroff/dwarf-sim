@@ -125,6 +125,8 @@ export interface Unit {
   feedAt?: number; // tick the vampire next goes looking for a sleeper
   raised?: boolean; // zombie raised by a necromancer
   smash?: number; // building id a building destroyer is on its way to break
+  den?: number; // forgotten beasts: the cell it woke in
+  fill?: number; // forgotten beasts: kills after which it goes back to its den
   stateUntil: number;
   moodNeeds?: { type: string; kind?: string; have: boolean }[]; // strange mood
   moodShop?: number;

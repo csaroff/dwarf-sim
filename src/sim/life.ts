@@ -1017,6 +1017,12 @@ function hostileTick(g: Game, u: Unit) {
     u.flee = true;
     g.say(`${cap(g.unitName(u))} breaks and runs!`, 'good', g.cellOf(u));
   }
+  if (u.den !== undefined && u.home === undefined && u.kills >= (u.fill ?? 1e9)) {
+    u.home = u.den;
+    u.target = 0;
+    u.path = null;
+    g.say(`${cap(g.unitName(u))} has killed its fill and slinks back to the depths.`, 'event', g.cellOf(u));
+  }
   if (g.tick >= u.nextThink) {
     u.nextThink = g.tick + 15;
     // raiders hunt the whole map; things that live in the caverns only defend their territory,
@@ -1245,6 +1251,7 @@ export function explainUnit(g: Game, u: Unit): Explain {
     }
     if (u.kind === 'necromancer') e.lines.push('Raises any corpse it can see as a zombie. Kill it and everything it raised collapses: marksdwarves are ideal. Bury your dead before it gets to them.');
     if (u.desc) e.lines.push(u.desc);
+    if (u.den !== undefined) e.lines.push(u.home === undefined ? `Roused: it is hunting your dwarves, and will go back to its lair after about ${Math.max(1, (u.fill || 0) - u.kills)} more kills. Shut it out, trap it, or shoot it from behind fortifications.` : 'Keeps to its lair in the cavern: it attacks only what comes near. Leave it be, or go down in force.');
     if (CREATURES[u.kind].smasher && u.faction === 'enemy') e.lines.push(u.smash ? 'Building destroyer: breaking down a locked door to get at your dwarves.' : 'Building destroyer: a locked door will not hold it for long. Walls, raised drawbridges and traps will.');
     if (u.kind === 'werebeast') e.lines.push('Any dwarf it wounds is cursed, and will transform at every full moon. It leaves when the moon sets.');
     if (u.state === 'caged' && u.faction !== 'fort') {
