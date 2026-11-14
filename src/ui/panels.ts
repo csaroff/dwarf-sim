@@ -7,7 +7,7 @@ import { BUY_MARKUP, tradeCan, tradeable } from '../sim/events';
 import { Game } from '../sim/game';
 import {
   DG_LABOR, DG_NAME, billStock, cropCan, explainTask, isHospitalBed, missingFor, recipeIngs, ripe, tryBill, tryBuild, tryBury, tryDeconstruct, tryDesig, tryHarvest, tryHaul,
-  tryHunt, tryPlant, tryPull, trySlaughter,
+  tryHunt, tryPlant, tryPull, trySlaughter, tryTame, untameable,
 } from '../sim/jobs';
 import { SOBER_SICK, SOBER_SLOW, explainUnit, woundText } from '../sim/life';
 import type { Building, Unit, Zone } from '../sim/types';
@@ -114,7 +114,15 @@ export function buildingPanel(g: Game, b: Building, linking: boolean): string {
   }
   if (b.type === 'cagetrap') {
     const c = g.units.get(b.caged || 0);
-    h += whys([c ? `Holding ${g.unitName(c)}. Removing the trap sets it loose.` : 'Armed.']);
+    h += whys([c ? `Holding ${g.unitName(c)}. Removing the trap sets it loose.` : 'Armed. Catches the first hostile or wild animal to step on it.']);
+    if (c) {
+      const no = untameable(c);
+      if (no) h += whys([`Cannot be tamed: ${no}.`]);
+      else {
+        h += `<div class="row">${btn(c.train ? 'Taming ordered' : 'Tame', 'train', c.id, c.train ? 'on' : '', 'A dwarf with the Hunt labor tames it: it joins the fortress, and a predator will fight for you')}</div>`;
+        if (c.train) h += whys([explainTask(g, 'hunt', (x) => tryTame(g, x, c), 'u' + c.id)]);
+      }
+    }
   }
   if (d.machine) h += `<div class="status ${b.powered ? '' : 'warn'}">${b.powered ? 'Turning' : 'Not turning'}</div>${whys([b.pwr || 'Not connected to anything yet.'].concat(b.type === 'gear' ? [b.open ? 'Disengaged by its lever.' : 'Engaged. Link a lever to switch it.'] : []))}`;
   if (b.type === 'bridge' || b.type === 'floodgate') h += whys([b.type === 'bridge' ? (b.open ? 'Raised: the gap is open.' : 'Lowered: can be walked on.') : b.open ? 'Open: fluids and dwarves can pass.' : 'Closed.', 'Operated by a linked lever.']);

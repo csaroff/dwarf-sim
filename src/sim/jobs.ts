@@ -8,7 +8,7 @@
 // Because every task goes through a tryX function, the game can always answer "why is nobody doing this?"
 // (explainTask) and "why can't this dwarf do it?" (the right-click menu shows the reason).
 import {
-  BUILDINGS, CREATURES, CROPS, F, ITEMS, QUALITY, TRAP_WEAPONS, Ing, LABORS, LABOR_NAME, Labor, MAT, MATS, PLANT, PLANTS, RECIPES, Recipe, T, TICKS_DAY, plantOf, matOf,
+  BUILDINGS, CREATURES, CROPS, F, FIRST_NAMES, ITEMS, QUALITY, TRAP_WEAPONS, Ing, LABORS, LABOR_NAME, Labor, MAT, MATS, PLANT, PLANTS, RECIPES, Recipe, T, TICKS_DAY, plantOf, matOf,
 } from './defs';
 import { Game, MAX_AMMO, MAX_STACK } from './game';
 import type { Bill, Building, Can, Item, Job, Unit, Zone } from './types';
@@ -931,6 +931,25 @@ export function tryTrain(g: Game, u: Unit, a: Unit): Try {
   if (!g.w.canReach(g.cellOf(u), g.cellOf(a), true)) return 'no path to it';
   return mk('train', `Training ${g.unitName(a)} for war`, g.cellOf(a), { u: a.id, key: 'u' + a.id, labor: 'hunt' });
 }
+/** can this kind of creature ever be tamed? '' if so, else why not */
+export function untameable(a: Unit): string {
+  const d = CREATURES[a.kind];
+  if (d.undead || a.kind === 'ghost') return 'the dead cannot be tamed';
+  if (d.shape === 'goblin' || d.shape === 'dwarf' || d.shape === 'were') return `a ${d.name} is no animal: it cannot be tamed`;
+  if (d.where === 'mega' || a.kind === 'beast') return `nothing tames a ${d.name}`;
+  return '';
+}
+/** Taming: anything caught in a cage trap that is an animal can be made one of yours. */
+export function tryTame(g: Game, u: Unit, a: Unit): Try {
+  if (a.dead) return 'It is dead';
+  if (a.faction === 'fort') return 'Already tame';
+  if (a.state !== 'caged') return 'It has to be caught in a cage trap first (Build > Machines > Cage Trap, where it walks)';
+  const no = untameable(a);
+  if (no) return no;
+  if (g.claimed('u' + a.id, u)) return `${first(g.claimant('u' + a.id)!)} is already taming it`;
+  if (!g.w.canReach(g.cellOf(u), g.cellOf(a), true)) return 'no path to the cage';
+  return mk('tame', `Taming ${g.unitName(a)}`, g.cellOf(a), { u: a.id, key: 'u' + a.id, labor: 'hunt' });
+}
 export const canMilk = (g: Game, a: Unit) => !!CREATURES[a.kind].milk && a.faction === 'fort' && !a.dead && g.tick >= (a.milkAt || 0);
 export const canShear = (g: Game, a: Unit) => !!CREATURES[a.kind].wool && a.faction === 'fort' && !a.dead && g.tick >= (a.shearAt || 0);
 export function tryTend2(g: Game, u: Unit, a: Unit, what: 'milk' | 'shear'): Try {
@@ -1424,6 +1443,37 @@ export const RUN: Record<string, Runner> = {
     g.say(`${first(u)} has trained ${a.name} into a war dog.`, 'good', g.cellOf(a));
     return 'done';
   },
+  tame(g, u, j) {
+    const a = g.units.get(j.u!);
+    if (!a || a.dead) return 'the animal is gone';
+    if (a.state !== 'caged') return 'it is no longer caged';
+    const w = walk(g, u, g.cellOf(a), true);
+    if (w === 'blocked') return 'no path to the cage';
+    if (w === 'going') return 'run';
+    j.t += g.speedMul(u, 'hunt');
+    // the more dangerous the creature, the longer it takes
+    if (j.t < 300 + (CREATURES[a.kind].danger || 0) * 250) return 'run';
+    const was = g.unitName(a);
+    const cage = g.buildings.get(a.cagedIn || 0);
+    if (cage) cage.caged = 0;
+    a.state = '';
+    a.cagedIn = 0;
+    a.faction = 'fort';
+    a.home = undefined;
+    a.leaveAt = undefined;
+    a.stolen = undefined;
+    a.target = 0;
+    a.flee = false;
+    a.hunted = false;
+    a.train = false;
+    a.name = g.rng.pick(FIRST_NAMES);
+    g.moveUnit(a, g.nearestFree(g.cellOf(a)));
+    g.train(u, 'hunt', 60);
+    g.w.version++;
+    g.say(`${first(u)} has tamed ${was}. It answers to ${a.name} now${CREATURES[a.kind].predator || CREATURES[a.kind].hostile ? ', and will fight for the fortress' : ''}.`, 'good', g.cellOf(a));
+    g.chronicle(`${u.name} tamed a ${CREATURES[a.kind].name}.`);
+    return 'done';
+  },
   milk(g, u, j) {
     return tendAnimal(g, u, j, 'milk');
   },
@@ -1817,7 +1867,7 @@ function candidates(g: Game, u: Unit, labor: Labor): Cand[] {
     }
     case 'hunt':
       for (const a of g.units.values()) if (a.hunted && !a.dead) out.push(() => tryHunt(g, u, a));
-      for (const a of g.units.values()) if (a.train && !a.dead) out.push(() => tryTrain(g, u, a));
+      for (const a of g.units.values()) if (a.train && !a.dead) out.push(() => (a.state === 'caged' ? tryTame(g, u, a) : tryTrain(g, u, a)));
       break;
     case 'fish':
       for (const z of g.zones.values()) if (z.kind === 'fishing') out.push(() => tryFish(g, u, z));

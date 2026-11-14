@@ -4,7 +4,7 @@ import { BUILDINGS, CREATURES, ITEMS, RECIPES } from './defs';
 import { Game } from './game';
 import {
   DG_NAME, Try, assign, canWalk, endJob, isJob, tryBill, tryBuild, tryBury, tryDeconstruct, tryDesig, tryEquip, tryFeed, tryFish, tryHarvest, tryHaul, tryHunt, tryPlant,
-  tryPull, tryRescue, trySlaughter, tryTend, tryTend2, tryTrain,
+  tryPull, tryRescue, trySlaughter, tryTame, tryTend, tryTend2, tryTrain,
 } from './jobs';
 import { downReason } from './life';
 import { accuse } from './night';
@@ -69,6 +69,8 @@ export function optionsAt(g: Game, u: Unit, cell: number): Option[] {
     else {
       if (b.remove) add(`Prioritize removing ${bn}`, tryDeconstruct(g, u, b));
       if (b.type === 'lever') add('Pull the lever', tryPull(g, u, b));
+      const caged = g.units.get(b.caged || 0);
+      if (b.type === 'cagetrap' && caged) add(`Tame ${g.unitName(caged)}`, tryTame(g, u, caged));
       if (b.type === 'bed') add('Sleep here', g.w.canReach(here, cell, false) ? mkJob('sleep', 'Sleeping', cell, { b: b.id }) : 'no path to the bed');
       b.bills.forEach((bill, k) => add(`Prioritize: ${RECIPES[bill.recipe].name}`, bill.paused ? 'This work order is paused' : tryBill(g, u, b, k)));
       if (BUILDINGS[b.type].shop && !b.bills.length) out.push({ label: `Work at ${bn}`, why: 'No work orders: click the workshop and add one first' });

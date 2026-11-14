@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { MAT, PLANT, T, TICKS_DAY } from '../src/sim/defs';
-import { beginMood, computeAlerts } from '../src/sim/events';
+import { beginMood, computeAlerts, trade } from '../src/sim/events';
 import { Game, MOON_DAYS } from '../src/sim/game';
 import { issueMandate } from '../src/sim/civics';
 import { megabeast, necroSiege, werebeast } from '../src/sim/night';
@@ -711,6 +711,57 @@ describe('the alarm', () => {
     expect(explainUnit(g, u).lines.join(' ')).toMatch(/no Refuge zone to go to \(Zones > Refuge\)/);
     expect(alertText(g)).toMatch(/There is no Refuge zone/);
   });
+});
+
+describe('taming', () => {
+  test('a wild animal walks into a cage trap and is tamed; a tamed predator fights for the fortress', () => {
+    const g = flatGame();
+    const tamer = dwarf(g, 40, 40, ['hunt']);
+    // a corridor with a cage trap in it, and a bear walking down it
+    for (let x = 44; x < 60; x++) for (const y of [49, 51]) g.w.setTile(cell(x, y), T.Wall, MAT.granite);
+    const trap = built(g, 'cagetrap', 50, 50);
+    const bear = g.addUnit('bear', cell(58, 50), 'wild');
+    bear.path = g.w.findPath(g.cellOf(bear), cell(45, 50), false);
+    bear.nextThink = 1e9;
+    run(g, 400, () => bear.state === 'caged');
+    expect(bear.state).toBe('caged');
+    expect(explainUnit(g, bear).lines.join(' ')).toMatch(/Can be tamed/);
+
+    // order it tamed: the hunter does the rest
+    bear.train = true;
+    run(g, 3000, () => bear.faction === 'fort');
+    expect(bear.faction).toBe('fort');
+    expect(bear.state).toBe('');
+    expect(trap.caged).toBeFalsy();
+    expect(g.log.some((l) => /has tamed the grizzly bear\. It answers to \w+ now, and will fight for the fortress/.test(l.text))).toBe(true);
+
+    bear.nextThink = 0;
+    const gob = g.addUnit('goblin', cell(g.cellOf(bear) % 96 + 5, 50), 'enemy');
+    run(g, 800, () => gob.dead || !g.units.has(gob.id));
+    expect(gob.dead || !g.units.has(gob.id)).toBe(true);
+    void tamer;
+  });
+
+  test('a caged goblin cannot be tamed, and says why', () => {
+    const g = flatGame();
+    const tamer = dwarf(g, 40, 40, ['hunt']);
+    const trap = built(g, 'cagetrap', 45, 40);
+    const gob = g.addUnit('goblin', cell(45, 40), 'enemy');
+    gob.state = 'caged';
+    gob.cagedIn = trap.id;
+    trap.caged = gob.id;
+    expect(optionsAt(g, tamer, cell(45, 40)).find((o) => o.label.startsWith('Tame'))!.why).toMatch(/a goblin is no animal/);
+  });
+});
+
+test('elves refuse anything made of wood or from an animal', () => {
+  const g = flatGame();
+  built(g, 'depot', 40, 40);
+  g.caravan = { civ: 'elven', arrive: 0, leave: 1e9, state: 'trading', goods: [], units: [], traded: 0 };
+  const chair = g.spawnItem('chair', MAT.oak, cell(45, 45), 1);
+  const gem = g.spawnItem('cutgem', MAT.ruby, cell(46, 45), 1);
+  expect(trade(g, new Map([[chair.id, 1]]), new Map())).toMatch(/elves recoil from the oak chair: it is made of wood/);
+  expect(trade(g, new Map([[gem.id, 1]]), new Map())).toBe('');
 });
 
 describe('the mayor', () => {

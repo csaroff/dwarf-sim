@@ -4,7 +4,7 @@ import { quartersProblem } from './civics';
 import { Game, MOON_TICKS } from './game';
 import {
   RUN, assign, canWalk, endJob, explainTask, findWork, hook, isJob, moveDelay, roomQuality, needsFeeding, needsRest, needsTending, runJob, tryDrink, tryEat, tryRescue, tryRest,
-  tryDress, trySleep, tryTend, tryTend2, tryTrain, walk,
+  tryDress, trySleep, tryTame, tryTend, tryTend2, tryTrain, untameable, walk,
 } from './jobs';
 import type { Item, Job, Unit, Wound } from './types';
 import { DIRS8, X, Y, Z, cheb, dist, idx, inMap } from './world';
@@ -883,9 +883,9 @@ function nearestEdge(g: Game, u: Unit): number {
   }
   return best;
 }
-function checkTrap(g: Game, u: Unit) {
+function checkTrap(g: Game, u: Unit, cageOnly = false) {
   const b = g.buildingAt(g.cellOf(u));
-  if (!b || !b.built) return;
+  if (!b || !b.built || (cageOnly && b.type !== 'cagetrap')) return;
   if (b.type === 'cagetrap' && !b.caged) {
     b.caged = u.id;
     u.state = 'caged';
@@ -1048,8 +1048,10 @@ function petTick(g: Game, u: Unit) {
   const here = g.cellOf(u);
   if (g.tick >= u.nextThink) {
     u.nextThink = g.tick + 25 + g.rng.int(10);
-    if (u.kind === 'dog' || u.kind === 'war_dog') {
-      const t = nearestHostile(g, u, u.kind === 'war_dog' ? 14 : 8);
+    // dogs, and anything tamed that was dangerous in the wild, defend the fortress
+    const fierce = u.kind === 'war_dog' || !!CREATURES[u.kind].predator || !!CREATURES[u.kind].hostile;
+    if (u.kind === 'dog' || fierce) {
+      const t = nearestHostile(g, u, fierce ? 14 : 8);
       u.target = t ? t.id : 0;
     }
     if (!u.target && (!u.path || !u.path.length) && g.rng.chance(0.35)) {
@@ -1084,7 +1086,12 @@ export function tickUnit(g: Game, u: Unit) {
   if (brain && brain(g, u)) return;
   if (u.isDwarf) dwarfTick(g, u);
   else if (u.faction === 'enemy') hostileTick(g, u);
-  else if (u.faction === 'wild') wildTick(g, u);
+  else if (u.faction === 'wild') {
+    // wild animals blunder into cage traps too (and can then be tamed); other traps are for enemies
+    const before = g.cellOf(u);
+    wildTick(g, u);
+    if (!u.dead && g.cellOf(u) !== before) checkTrap(g, u, true);
+  }
   else if (u.faction === 'fort') petTick(g, u);
   else if (u.job) runJob(g, u); // merchants are driven by events.ts
 }
@@ -1109,6 +1116,12 @@ export function explainUnit(g: Game, u: Unit): Explain {
     }
     if (u.kind === 'necromancer') e.lines.push('Raises any corpse it can see as a zombie. Kill it and everything it raised collapses: marksdwarves are ideal. Bury your dead before it gets to them.');
     if (u.kind === 'werebeast') e.lines.push('Any dwarf it wounds is cursed, and will transform at every full moon. It leaves when the moon sets.');
+    if (u.state === 'caged' && u.faction !== 'fort') {
+      e.status = 'Caged';
+      const no = untameable(u);
+      e.lines.push(no ? `Cannot be tamed: ${no}. It stays here until the trap is removed (which lets it out).` : u.train ? 'Taming — ' + explainTask(g, 'hunt', (d) => tryTame(g, d, u), 'u' + u.id) : 'Can be tamed: click the cage trap and choose Tame, or select a dwarf and right-click the cage.');
+      return e;
+    }
     if (u.state === 'caged') e.status = 'Caged';
     else if (u.target && g.units.get(u.target)) e.status = `Attacking ${g.unitName(g.units.get(u.target)!)}`;
     else if (u.flee) e.status = 'Fleeing';

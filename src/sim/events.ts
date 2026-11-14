@@ -343,6 +343,14 @@ export function trade(g: Game, sell: Map<number, number>, buy: Map<number, numbe
     ask += (g.itemValue(it) / it.n) * Math.min(n, it.n) * BUY_MARKUP;
   }
   if (!sell.size && !buy.size) return 'Select something to trade';
+  if (cv.civ === 'elven') {
+    // elves will not touch anything that cost a tree or an animal its life
+    for (const id of sell.keys()) {
+      const it = g.items.get(id)!;
+      const why = MATS[it.mat].kind === 'wood' ? 'made of wood' : ['bone', 'leather', 'flesh', 'wool'].includes(MATS[it.mat].id) && it.type !== 'cloth' ? 'made from a slain animal' : '';
+      if (why) return `The elves recoil from the ${g.itemName(it, true)}: it is ${why}. Offer them stone, metal, gems, glass or cloth instead.`;
+    }
+  }
   if (offer < ask) return `The merchants want more: you offer ${Math.round(offer)}☼ for goods they value at ${Math.round(ask)}☼.`;
   const at = g.center(depot(g)!);
   for (const [id, n] of sell) {
