@@ -88,6 +88,11 @@ export function alarm(g: Game) {
   // only what can actually get to a dwarf counts (the game's alert makes the same distinction):
   // cavern dwellers keep to themselves, and a beast behind solid rock is not worth stopping work for
   const ds = g.dwarves();
-  const foes = Array.from(g.units.values()).some((u) => u.faction === 'enemy' && u.state !== 'caged' && u.home === undefined && u.kind !== 'kobold' && ds.some((d) => g.w.canReach(g.cellOf(u), g.cellOf(d), true)));
-  for (const u of g.dwarves()) if (u.drafted !== foes) setDraft(g, u, foes);
+  const foes = Array.from(g.units.values()).some((u) => u.faction === 'enemy' && u.state !== 'caged' && u.home === undefined && u.kind !== 'kobold' && ds.some((d) => g.w.canReach(g.cellOf(u), g.cellOf(d), true)))
+    || ds.some((d) => d.state === 'were'); // a transformed dwarf raises an alert too
+  // to arms: the militia and anyone holding something to fight with. The unarmed are left to run.
+  for (const u of g.dwarves()) {
+    const on = foes && (u.militia || !!(u.equip.weapon || u.equip.axe || u.equip.pick));
+    if (u.drafted !== on) setDraft(g, u, on);
+  }
 }

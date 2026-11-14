@@ -6,6 +6,7 @@ import {
   DG_LABOR, DG_NAME, RUN, assign, canWalk, endJob, explainTask, fetch, isJob, needsTending, tryBuild, tryDesig, tryHaul, tryRescue, walk,
 } from './jobs';
 import { SOBER_SLOW, downReason, killUnit } from './life';
+import { nightAlerts, tickNight } from './night';
 import type { Alert, Building, Item, Job, Unit } from './types';
 import { WH, X, Y, Z, dist, idx, inMap } from './world';
 import { CAVERN1_Z, CAVERN2_Z } from './worldgen';
@@ -54,6 +55,9 @@ export function embark(g: Game) {
   g.ev.nextCaravan = TICKS_DAY * 16;
   g.ev.nextMood = TICKS_DAY * 20;
   g.ev.nextBeast = TICKS_DAY * 60;
+  g.ev.nextWere = TICKS_DAY * 40;
+  g.ev.nextNecro = TICKS_DAY * 75;
+  g.ev.nextMega = TICKS_DAY * 110;
   g.say(`Strike the earth! Seven dwarves have arrived to found ${g.fortName}.`, 'event', at);
   g.say('Dwarves need alcohol to function. Dig in, plant a farm, and build a Still before the barrels run dry.', 'info');
 }
@@ -523,7 +527,7 @@ function nature(g: Game) {
   }
   let wild = 0, cav = 0;
   for (const u of g.units.values()) {
-    if (u.faction === 'wild' && !CREATURES[u.kind].water && g.outsideAt(u)) wild++;
+    if (u.faction === 'wild' && !CREATURES[u.kind].water && u.kind !== 'ghost' && g.outsideAt(u)) wild++;
     if (CREATURES[u.kind].where === 'cavern' && !CREATURES[u.kind].water) cav++;
   }
   if (wild < 7 && g.rng.chance(0.5)) spawnWild(g);
@@ -577,6 +581,7 @@ export function computeAlerts(g: Game): Alert[] {
     if (u.state === 'mood' && u.job && /needs/.test(u.job.label)) out.push({ id: 'mood' + u.id, sev: 'warn', text: `${first(u)}'s strange mood`, detail: `${u.name}: ${u.job.label} Will go insane in ${((u.stateUntil - g.tick) / TICKS_DAY).toFixed(1)} days without it.`, unit: u.id });
     if (!u.state && u.mood < 25) out.push({ id: 'sad' + u.id, sev: 'warn', text: `${first(u)} is miserable`, detail: `${u.name} is close to breaking. Worst thoughts: ${u.thoughts.filter((t) => t.v < 0).sort((a, b) => a.v - b.v).slice(0, 3).map((t) => t.text).join('; ') || 'none'}.`, unit: u.id });
   }
+  nightAlerts(g, out);
   // ---- enemies
   const foes = Array.from(g.units.values()).filter((u) => u.faction === 'enemy' && !u.dead && u.state !== 'caged' && g.w.revealed(g.cellOf(u)) && u.kind !== 'kobold' && (u.home === undefined || !!u.target));
   // an enemy that has no route to anyone is a different problem from one at the gate
@@ -706,11 +711,14 @@ export function tickEvents(g: Game) {
   if (t >= e.nextCaravan && !g.caravan) caravanArrive(g);
   if (t >= e.nextThief) thief(g);
   if (t >= e.nextRaid) {
-    if (pop >= 9 || g.wealth > 3000) raid(g);
+    // one disaster at a time: goblins wait their turn while the dead are at the gates
+    if (Array.from(g.units.values()).some((u) => u.kind === 'necromancer' || u.kind === 'werebeast' || CREATURES[u.kind].where === 'mega')) e.nextRaid = t + TICKS_DAY * 4;
+    else if (pop >= 9 || g.wealth > 3000) raid(g);
     else e.nextRaid = t + TICKS_DAY * 6;
   }
   if (t >= e.nextMood) startMood(g);
   if (t >= e.nextBeast) beast(g);
+  tickNight(g);
 }
 
 export { killUnit, plantOf, PLANTS };

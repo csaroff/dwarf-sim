@@ -13,9 +13,18 @@ for (const seed of seeds) {
   test(`seed ${seed}: two years without a crash`, async () => {
     const g = newGame(seed);
     found(g);
+    const deaths: typeof g.log = [];
+    let last: unknown = null;
     for (let t = 0; t < TICKS_DAY * 96; t++) {
       step(g);
       if (t % 20000 === 0) await new Promise((r) => setTimeout(r, 0));
+      if (t % 500 === 0) {
+        // the log is capped, so collect dwarf deaths as they are announced
+        const fresh: typeof g.log = [];
+        for (let k = g.log.length - 1; k >= 0 && g.log[k] !== last; k--) fresh.unshift(g.log[k]);
+        last = g.log[g.log.length - 1];
+        for (const l of fresh) if (l.kind === 'death' && /, \w[\w ]*, has /.test(l.text)) deaths.push(l);
+      }
       if (t === 2500) queue(g);
       if (t % 3000 === 2999) upkeep(g);
       if (t % 50 === 0) alarm(g);
@@ -28,7 +37,6 @@ for (const seed of seeds) {
     const s = g.stocks();
     // how the dead died, and when: the balance picture for this world
     const causes: Record<string, number> = {};
-    const deaths = g.log.filter((l) => l.kind === 'death' && / has /.test(l.text) && !/arrived|gone berserk|slipped|crumbled|unable|has come!|siege|ambush/.test(l.text));
     for (const l of deaths) {
       const c = l.text.replace(/^.* has /, '').replace(/ by .*$/, (m) => ' by ' + m.replace(/^ by (the )?/, '').replace(/^[A-Z]\S* the /, '').replace(/\.$/, '')).replace(/\.$/, '');
       causes[c] = (causes[c] || 0) + 1;

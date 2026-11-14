@@ -87,4 +87,34 @@ test.runIf(mode === 'full')('two years with everything on: stocks over time', ()
     }
   }
 }, 900000);
+test.runIf(mode === 'story')('the notable events of one fortress, day by day', async () => {
+  const from = Number(process.env.FROM || 0);
+  for (const seed of (process.env.SEEDS || '42').split(',').map(Number)) {
+    const g = newGame(seed);
+    found(g);
+    const out: string[] = [];
+    let last: unknown = null;
+    for (let t = 0; t < TICKS_DAY * 96; t++) {
+      step(g);
+      if (t % 20000 === 0) await new Promise((r) => setTimeout(r, 0));
+      if (t === 2500) queue(g);
+      if (t % 3000 === 2999) upkeep(g);
+      if (t % 50 === 0) alarm(g);
+      if (t === TICKS_DAY * 20) raid(g, 2);
+      // the log is capped, so read new lines from the end rather than by index
+      const fresh: typeof g.log = [];
+      for (let k = g.log.length - 1; k >= 0 && g.log[k] !== last; k--) fresh.unshift(g.log[k]);
+      last = g.log[g.log.length - 1];
+      for (const l of fresh) if (l.tick >= from * TICKS_DAY && (l.kind === 'death' || /transformed|tantrum|returned to dwarven|bitten|ghost|rises|collapsed|flees|thralls/.test(l.text))) out.push(`d${(l.tick / TICKS_DAY).toFixed(1)} pop${g.dwarves().length} ${l.text.slice(0, 140)}`);
+      if (t % (TICKS_DAY * 3) === 0 && t >= from * TICKS_DAY) {
+        const ds = g.dwarves();
+        const jobs: Record<string, number> = {};
+        for (const u of ds) jobs[u.job?.type || 'none'] = (jobs[u.job?.type || 'none'] || 0) + 1;
+        const foes = Array.from(g.units.values()).filter((u) => u.faction === 'enemy');
+        out.push(`  == d${t / TICKS_DAY} pop ${ds.length} drafted ${ds.filter((u) => u.drafted).length} down ${ds.filter((u) => u.downSince).length} mood ${Math.round(ds.reduce((a, u) => a + u.mood, 0) / (ds.length || 1))} jobs ${JSON.stringify(jobs)} foes ${foes.map((f) => f.kind).join(',')} | alerts: ${g.alerts.map((a) => a.text).join(' / ')}`);
+      }
+    }
+    console.log(out.join('\n'));
+  }
+}, 900000);
 test('diagnostics are opt-in', () => {});

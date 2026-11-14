@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import { MAT, T, TICKS_DAY } from '../src/sim/defs';
 import { beginMood, computeAlerts } from '../src/sim/events';
-import { Game } from '../src/sim/game';
+import { Game, MOON_DAYS } from '../src/sim/game';
+import { megabeast, necroSiege, werebeast } from '../src/sim/night';
 import { DG, canPlace, explainTask, placeBuilding, tryDesig } from '../src/sim/jobs';
-import { explainUnit, fallDamage, lineOfSight } from '../src/sim/life';
+import { explainUnit, fallDamage, killUnit, lineOfSight } from '../src/sim/life';
 import { optionsAt, order, setDraft } from '../src/sim/orders';
 import { step } from '../src/sim/sim';
 import { WH } from '../src/sim/world';
@@ -474,6 +475,103 @@ describe('clothing', () => {
     expect(u.wear).toBe(100);
     expect(g.count((i) => i.type === 'clothes')).toBe(0);
     expect(u.thoughts.some((t) => /fresh clothes/.test(t.text))).toBe(true);
+  });
+});
+
+describe('things that come in the night', () => {
+  test('a werebeast bite curses a dwarf, who transforms at the next full moon and changes back healed', () => {
+    const g = flatGame();
+    const victim = dwarf(g, 40, 40, []);
+    victim.nextThink = 1e9; // stands still for the bite
+    g.spawnItem('drink', MAT.oak, cell(60, 60), 5, { sub: 'dwarven ale' });
+    g.tick = (MOON_DAYS - 1) * TICKS_DAY; // the moon rises
+    const beast = werebeast(g);
+    g.moveUnit(beast, cell(41, 40));
+    expect(g.attention?.text).toMatch(/moon is full/);
+
+    // (kept on his feet for the story: it can take a few bites before one goes deep enough)
+    run(g, 700, () => {
+      victim.hp = victim.maxHp;
+      return !!victim.cursed;
+    });
+    expect(victim.dead).toBe(false);
+    expect(victim.cursed).toBe(beast.cursed);
+    // one bite is enough for the story: the moon sets, and the beast leaves
+    beast.leaveAt = g.tick;
+    beast.target = 0;
+    g.moveUnit(beast, cell(70, 70));
+    run(g, 3000, () => !g.units.has(beast.id));
+    expect(victim.state).toBe(''); // the moon of the bite does not turn the victim
+    expect(g.units.has(beast.id)).toBe(false);
+
+    // the panel and an alert count down to the change and say what to do about it
+    victim.nextThink = 0;
+    g.tick = (MOON_DAYS * 2 - 1) * TICKS_DAY - 900;
+    expect(explainUnit(g, victim).lines.join(' ')).toMatch(/Cursed: bitten by a were.*lock the door/);
+    expect(alertText(g)).toMatch(/turns in 0\.5d/);
+
+    const bystander = dwarf(g, 44, 40, []);
+    run(g, 1200, () => victim.state === 'were');
+    expect(victim.state).toBe('were');
+    expect(victim.wounds.length).toBe(0);
+    expect(optionsAt(g, victim, cell(45, 45))[0].why).toMatch(/is a were/);
+    // it goes for whoever is nearest
+    run(g, 600, () => bystander.hp < bystander.maxHp || bystander.dead);
+    expect(bystander.hp < bystander.maxHp || bystander.dead).toBe(true);
+
+    run(g, 1500, () => victim.state === '');
+    expect(victim.state).toBe('');
+    expect(victim.dead).toBe(false);
+  });
+
+  test('a necromancer raises the unburied dead; killing it drops every thrall', () => {
+    const g = flatGame();
+    const necro = necroSiege(g, 0);
+    g.moveUnit(necro, cell(50, 50));
+    g.spawnItem('corpse', MAT.flesh, cell(53, 50), 1, { sub: 'deer' });
+    g.spawnItem('corpse', MAT.flesh, cell(50, 53), 1, { sub: 'Urist Deadbeard', dwarf: true });
+
+    run(g, 600, () => g.count((i) => i.type === 'corpse') === 0);
+    const thralls = Array.from(g.units.values()).filter((u) => u.kind === 'zombie');
+    expect(thralls.length).toBe(2);
+    expect(thralls.map((z) => g.unitName(z)).sort()).toEqual(['the corpse of Urist Deadbeard', 'the deer zombie']);
+
+    killUnit(g, necro, 'been shot dead');
+    expect(Array.from(g.units.values()).filter((u) => u.kind === 'zombie').length).toBe(0);
+    expect(g.log.some((l) => /2 of its thralls crumple/.test(l.text))).toBe(true);
+  });
+
+  test('the unburied dead come back as ghosts until they get a coffin', () => {
+    const g = flatGame();
+    const u = dwarf(g, 40, 40, ['haul']);
+    g.spawnItem('drink', MAT.oak, cell(41, 41), 5, { sub: 'dwarven ale' });
+    g.spawnItem('meal', MAT.none, cell(41, 42), 5, { sub: 'stew' });
+    const body = g.spawnItem('corpse', MAT.flesh, cell(45, 45), 1, { sub: 'Kadol Lostbrow', dwarf: true });
+
+    run(g, TICKS_DAY * 7, () => !!body.ghost);
+    const ghost = g.units.get(body.ghost!)!;
+    expect(ghost.name).toBe('the ghost of Kadol Lostbrow');
+    expect(alertText(g)).toMatch(/1 ghost.*Bury the body in a coffin/s);
+    // it cannot be attacked, and says so
+    expect(explainUnit(g, ghost).lines.join(' ')).toMatch(/cannot be fought/);
+
+    const coffin = g.addBuilding('coffin', 48, 45, 20);
+    coffin.built = true;
+    run(g, 2000, () => !g.units.has(ghost.id));
+    expect(g.units.has(ghost.id)).toBe(false);
+    expect(coffin.corpse).toBe('Kadol Lostbrow');
+    void u;
+  });
+
+  test('megabeasts announce themselves and breathe fire from range', () => {
+    const g = flatGame();
+    const d = megabeast(g, 'dragon');
+    expect(g.attention?.text).toMatch(/dragon .* has come/);
+    g.moveUnit(d, cell(50, 40));
+    const u = dwarf(g, 44, 40, []);
+    u.nextThink = 1e9;
+    run(g, 300, () => u.dead || u.hp < u.maxHp);
+    expect(g.log.some((l) => /breathes fire on/.test(l.text) || /burned to death/.test(l.text))).toBe(true);
   });
 });
 

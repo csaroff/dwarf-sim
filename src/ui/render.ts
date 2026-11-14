@@ -67,6 +67,7 @@ function spriteOf(u: Unit): { map: string[]; pal: Record<string, string> } {
   const d = CREATURES[u.kind];
   const fg = hex6(u.fg);
   const dfg = hex6(d.fg);
+  if (u.state === 'were') return { map: SPRITES.were, pal: { B: '#8a6a3a', L: '#4a3a20', E: '#ff3020', W: '#f0f0f0' } };
   if (d.shape === 'dwarf') {
     if (u.kind === 'zombie') return { map: SPRITES.dwarf, pal: { H: '#4a5a40', S: '#80a070', E: '#e0e040', B: '#5a6a50', C: '#3a3a30', L: '#2a2a20' } };
     if (u.kind === 'necromancer') return { map: SPRITES.dwarf, pal: { H: '#3a1a5a', S: '#c8c0d8', E: '#b060ff', B: '#3a1a5a', C: '#2a1040', L: '#1a0a28' } };
@@ -692,7 +693,7 @@ export class Renderer {
   private unit(c: Ctx, u: Unit, px: number, py: number, blink: boolean) {
     const s = this.cam.tile;
     const d = CREATURES[u.kind];
-    const lying = u.isDwarf && (u.downSince > 0 || u.job?.type === 'sleep' || u.job?.type === 'rest');
+    const lying = u.isDwarf && u.state !== 'were' && (u.downSince > 0 || u.job?.type === 'sleep' || u.job?.type === 'rest');
     const sp = spriteOf(u);
     const px1 = s / 8;
     const size = Math.ceil(px1);

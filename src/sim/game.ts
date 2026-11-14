@@ -13,6 +13,8 @@ export const MONTHS = ['Granite', 'Slate', 'Felsite', 'Hematite', 'Malachite', '
 export const START_YEAR = 250;
 export const MAX_STACK = 20;
 export const MAX_AMMO = 40;
+export const MOON_DAYS = 12;
+export const MOON_TICKS = 800;
 
 export interface Crop {
   plant: string;
@@ -38,6 +40,7 @@ export class Game {
   // event bookkeeping (see events.ts)
   ev = {
     nextMigrants: 0, nextRaid: 0, nextCaravan: 0, nextMood: 0, nextBeast: 0, nextWild: 0, nextThief: 0,
+    nextWere: 0, nextNecro: 0, nextMega: 0,
     cavern: 0, magmaSeen: false, hell: false, raids: 0, deaths: 0, migrants: 0, lost: false, artifacts: 0,
   };
   wealth = 0;
@@ -86,6 +89,17 @@ export class Game {
     const dom = (dayOfYear % (DAYS_SEASON / 3)) + 1;
     const hour = Math.floor(((this.tick % TICKS_DAY) / TICKS_DAY) * 24);
     return `${dom}${['st', 'nd', 'rd', 'th'][Math.min(dom - 1, 3)]} ${MONTHS[month]} ${this.year}, ${SEASONS[this.season]} · ${String(hour).padStart(2, '0')}:00`;
+  }
+
+  /** The moon is full for the first part of the last day of every 12-day cycle. Werebeasts change. */
+  fullMoon() {
+    return this.day % MOON_DAYS === MOON_DAYS - 1 && this.tick % TICKS_DAY < MOON_TICKS;
+  }
+  /** days until the next full moon begins (0 while it is up) */
+  daysToMoon() {
+    if (this.fullMoon()) return 0;
+    const start = (Math.floor(this.day / MOON_DAYS) * MOON_DAYS + MOON_DAYS - 1) * TICKS_DAY;
+    return ((start > this.tick ? start : start + MOON_DAYS * TICKS_DAY) - this.tick) / TICKS_DAY;
   }
 
   // ------------------------------------------------------------------ log
@@ -438,6 +452,8 @@ export class Game {
   unitName(u: Unit): string {
     if (u.isDwarf) return u.name;
     const d = CREATURES[u.kind];
+    if (u.kind === 'werebeast') return `${u.name} the were${u.cursed || 'beast'}`;
+    if ((u.kind === 'zombie' || u.kind === 'ghost') && u.name !== d.name) return u.name;
     return u.name !== d.name ? `${u.name} the ${d.name}` : `the ${d.name}`;
   }
   /** work speed multiplier from skill (1 = dabbling, 2.5 = legendary) */

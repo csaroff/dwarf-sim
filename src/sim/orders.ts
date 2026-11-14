@@ -21,6 +21,7 @@ export function cannotOrder(g: Game, u: Unit): string {
   if (u.downSince) return `${n} cannot do anything: ${downReason(u) || 'incapacitated'}`;
   if (u.state === 'tantrum') return `${n} is throwing a tantrum and will not listen`;
   if (u.state === 'berserk') return `${n} has gone berserk`;
+  if (u.state === 'were') return `${n} is a were${u.cursed} until the moon sets`;
   if (u.state === 'melancholy') return `${n} is lost in melancholy and will not work`;
   if (u.state === 'mood') return `${n} is possessed by a strange mood and will not listen`;
   if (!canWalk(u)) return `${n} cannot move`;

@@ -18,6 +18,7 @@ export interface Item {
   name?: string; // artifacts
   dwarf?: boolean; // corpse of a fortress dwarf
   skipHaul?: number; // tick until which haulers ignore it
+  ghost?: number; // dwarf corpses: unit id of the ghost that rose from it
 }
 
 export interface Wound {
@@ -110,6 +111,7 @@ export interface Unit {
   lastFailTick: number;
   state: '' | 'tantrum' | 'berserk' | 'melancholy' | 'mood' | 'caged' | 'were';
   cursed?: string; // werebeast curse: the animal form ("wolf"); transforms at the full moon
+  cursedAt?: number; // tick of the bite: the moon it happened under does not count
   vampire?: boolean;
   raised?: boolean; // zombie raised by a necromancer
   stateUntil: number;

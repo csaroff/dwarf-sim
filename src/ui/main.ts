@@ -542,7 +542,7 @@ function ui() {
   const [smin, smax] = surfaceRange();
   const where = (z: number) => (z > smax ? 'sky' : z >= smin ? 'surf' : g.ev.magmaSeen && z <= MAGMA_Z ? 'mag' : (g.ev.cavern >= 1 && (z === CAVERN1_Z || z === CAVERN1_Z + 1)) || (g.ev.cavern >= 2 && (z === CAVERN2_Z || z === CAVERN2_Z + 1)) ? 'cav' : 'under');
   const WHERE: Record<string, string> = { sky: 'sky', surf: 'surface', under: 'underground', cav: 'cavern', mag: 'magma sea' };
-  set('top', `<span class="name">☼ ${esc(g.fortName)}</span><span class="date">${g.dateString()}</span>
+  set('top', `<span class="name">☼ ${esc(g.fortName)}</span><span class="date">${g.dateString()}</span><span class="wide" title="Werebeasts change when the moon is full" style="color:${g.fullMoon() ? '#fff' : '#8a8272'}">${g.fullMoon() ? '● full moon' : `☾ ${g.daysToMoon().toFixed(0)}d`}</span>
     ${stat('☺', pop, 1)}${stat('Drink', s.drink || 0, pop * 2)}${stat('Food', s.food || 0, pop * 2)}<span class="stat wide">Wealth <b>${g.wealth}☼</b></span>
     <span class="sp"></span>
     ${b('▼', 'z', -1, false, 'Level down (Q)')}<span title="0 is the level the wagon arrived on. Shift+wheel also changes level; the gauge on the left jumps to any level">Level <b>${lvl > 0 ? '+' : ''}${lvl}</b> <span class="sub">${WHERE[where(R.cam.z)]}</span></span>${b('▲', 'z', 1, false, 'Level up (E)')}

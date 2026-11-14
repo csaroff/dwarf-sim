@@ -655,6 +655,17 @@ export function finishBuilding(g: Game, u: Unit | null, b: Building) {
   else if (u) b.q = 0;
   if (b.type === 'bridge') b.open = false;
   if (b.type === 'floodgate') b.open = false;
+  if (b.type === 'slab') {
+    // a memorial quiets a ghost whose body is lost
+    const ghost = Array.from(g.units.values()).find((o) => o.kind === 'ghost' && !Array.from(g.items.values()).some((i) => i.ghost === o.id && g.onGround(i)))
+      || Array.from(g.units.values()).find((o) => o.kind === 'ghost');
+    if (ghost) {
+      b.corpse = ghost.name.replace(/^the ghost of /, '');
+      g.units.delete(ghost.id);
+      ghost.dead = true;
+      g.say(`${b.corpse} has been memorialised. The ghost is at peace.`, 'good', g.center(b));
+    } else b.corpse = 'the fallen';
+  }
   g.applyBlock(b);
   if (d.blocks || b.type === 'well')
     for (const c of g.cellsOf(b))
@@ -834,6 +845,7 @@ export function tryHunt(g: Game, u: Unit, prey: Unit): Try {
   if (prey.dead) return 'It is already dead';
   if (g.claimed('u' + prey.id, u)) return `${first(g.claimant('u' + prey.id)!)} is already hunting it`;
   if (CREATURES[prey.kind].water) return 'it is in the water where no dwarf can follow';
+  if (prey.kind === 'ghost') return 'a ghost cannot be harmed: bury the body, or place a memorial slab';
   if (!g.w.canReach(g.cellOf(u), g.cellOf(prey), true)) return 'no path to it';
   const hunt = mk('hunt', `Hunting ${g.unitName(prey)}`, g.cellOf(prey), { u: prey.id, key: 'u' + prey.id, labor: 'hunt' });
   const held = g.items.get(u.equip.weapon);
@@ -1352,6 +1364,12 @@ export const RUN: Record<string, Runner> = {
     if (it) {
       b.corpse = it.sub;
       g.say(`${it.sub} has been laid to rest.`, 'info', g.center(b));
+      const ghost = g.units.get(it.ghost || 0);
+      if (ghost) {
+        g.units.delete(ghost.id);
+        ghost.dead = true;
+        g.say(`The ghost of ${it.sub} is at peace.`, 'good', g.center(b));
+      }
       g.removeItem(it);
     }
     return 'done';

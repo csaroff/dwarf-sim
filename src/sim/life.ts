@@ -1,6 +1,6 @@
 // Life: needs, health, combat, and the per-tick brains of dwarves and creatures.
 import { BUILDINGS, CREATURES, ITEMS, MAT, MATS, PARTS, PART_W, TICKS_DAY } from './defs';
-import { Game } from './game';
+import { Game, MOON_TICKS } from './game';
 import {
   RUN, assign, canWalk, endJob, explainTask, findWork, hook, isJob, moveDelay, needsFeeding, needsRest, needsTending, runJob, tryDrink, tryEat, tryRescue, tryRest,
   tryDress, trySleep, tryTend, walk,
@@ -26,7 +26,9 @@ export function killUnit(g: Game, u: Unit, cause: string, by?: Unit) {
   endJob(g, u);
   u.dead = true;
   g.dropAll(u);
-  if (u.kind !== 'wagon') g.spawnItem('corpse', MAT.flesh, g.nearestFree(cell), 1, { sub: u.isDwarf ? u.name : u.kind, dwarf: u.isDwarf });
+  // the walking dead fall apart; everything else leaves a body
+  if (u.kind === 'zombie') g.spawnItem('bone', MAT.bone, g.nearestFree(cell), 1, { sub: 'zombie' });
+  else if (u.kind !== 'wagon' && u.kind !== 'ghost') g.spawnItem('corpse', MAT.flesh, g.nearestFree(cell), 1, { sub: u.isDwarf ? u.name : u.kind, dwarf: u.isDwarf });
   if (u.isDwarf) {
     g.say(`${u.name}, ${g.profession(u)}, has ${cause}.`, 'death', cell);
     g.ev.deaths++;
@@ -44,7 +46,12 @@ export function killUnit(g: Game, u: Unit, cause: string, by?: Unit) {
   }
   for (const o of g.units.values()) if (o.carriedBy === u.id) o.carriedBy = 0;
   g.units.delete(u.id);
+  for (const f of onDeath) f(g, u);
 }
+/** called after any unit dies (night.ts: a necromancer's thralls collapse with it) */
+export const onDeath: ((g: Game, u: Unit) => void)[] = [];
+/** special per-kind behaviour; return true when the unit has been dealt with this tick */
+export const brains: Record<string, (g: Game, u: Unit) => boolean> = {};
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const an = (s: string) => (/^[aeiou]/i.test(s) ? 'an ' : 'a ') + s;
 
@@ -107,7 +114,7 @@ function armorAt(g: Game, u: Unit, part: number): number {
     const it = g.items.get(u.equip[slot]);
     return it && ITEMS[it.type].armor ? ITEMS[it.type].armor!.prot * (MATS[it.mat].armor ?? 0.5) * (1 + it.q * 0.1) * share : 0;
   };
-  let p = CREATURES[u.state === 'were' ? 'werebeast' : u.kind].armor || 0;
+  let p = CREATURES[u.kind].armor || 0;
   if (part === 0) p += piece('head');
   else if (part <= 2) p += piece('body');
   else if (part <= 4) p += piece('hands') + piece('body', 0.5); // sleeves
@@ -115,11 +122,11 @@ function armorAt(g: Game, u: Unit, part: number): number {
   return p;
 }
 export function fightSkill(g: Game, u: Unit) {
-  if (u.state === 'were') return CREATURES.werebeast.skill;
+  if (u.state === 'were') return CREATURES.weredwarf.skill;
   return u.isDwarf ? g.skillLevel(u, 'fight') : u.skill;
 }
 /** the creature whose natural weapons this unit fights with (a transformed dwarf fights as a werebeast) */
-const body = (u: Unit) => CREATURES[u.state === 'were' ? 'werebeast' : u.kind];
+const body = (u: Unit) => CREATURES[u.state === 'were' ? 'weredwarf' : u.kind];
 const nameOf = (g: Game, u: Unit) => (u.isDwarf ? first(u) : g.unitName(u));
 
 export interface Ranged {
@@ -185,23 +192,28 @@ function strike(g: Game, a: Unit, b: Unit, base: number, dtype: string, verb: st
   b.hp -= dmg;
   const frac = dmg / b.maxHp;
   let text = '';
+  let sev = 0;
   if (frac >= 0.3) {
+    sev = 2;
     text = addWound(g, b, part, 2, dtype).desc;
     if (part === 0 && b.hp < b.maxHp * 0.45 && g.rng.chance(0.5)) b.hp = 0;
-  } else if (frac >= 0.1) text = addWound(g, b, part, 1, dtype).desc;
+  } else if (frac >= 0.1) {
+    sev = 1;
+    text = addWound(g, b, part, 1, dtype).desc;
+  }
   const an = cap(nameOf(g, a)), bn = nameOf(g, b);
   if (a.faction === 'fort' || b.faction === 'fort') {
     if (text) g.say(`${an} ${verb} ${bn} in the ${PARTS[part]}${withW}: ${text}!`, 'combat', g.cellOf(b));
     else if (prot > base * 0.8 && g.rng.chance(0.3)) g.say(`${an} ${verb} ${bn}, but the blow glances off the armor.`, 'combat', g.cellOf(b));
   }
-  onStruck(g, a, b, text !== '');
+  onStruck(g, a, b, sev);
   if (b.hp <= 0 && !b.dead) {
     const by = a.isDwarf ? a.name : g.unitName(a);
     killUnit(g, b, dtype === 'burn' ? `been burned to death by ${by}` : part === 0 && dtype === 'edge' ? `been beheaded by ${by}` : withW.includes('bolt') ? `been shot dead by ${by}` : `been struck down by ${by}`, a);
   }
 }
 /** hooks for curses and the like (events.ts plugs in) */
-export let onStruck: (g: Game, a: Unit, b: Unit, wounded: boolean) => void = () => {};
+export let onStruck: (g: Game, a: Unit, b: Unit, sev: number) => void = () => {};
 export function setOnStruck(f: typeof onStruck) {
   onStruck = f;
 }
@@ -215,7 +227,7 @@ function blocks(g: Game, a: Unit, b: Unit, helpless: boolean, sb: number): boole
 const isHelpless = (b: Unit) => (b.downSince > 0 && (b.blood < 35 || b.hp < b.maxHp * 0.25)) || b.job?.type === 'sleep' || b.state === 'caged';
 
 export function attack(g: Game, a: Unit, b: Unit) {
-  if (a.atkCd > 0 || a.dead || b.dead) return;
+  if (a.atkCd > 0 || a.dead || b.dead || b.kind === 'ghost') return;
   const cd = body(a);
   const sa = fightSkill(g, a);
   a.atkCd = Math.max(6, 13 - Math.floor(sa / 3));
@@ -239,7 +251,7 @@ export function attack(g: Game, a: Unit, b: Unit) {
 }
 /** Loose a bolt (or a gout of fire) at a distant target. */
 export function shoot(g: Game, a: Unit, b: Unit, r: Ranged) {
-  if (a.atkCd > 0 || a.dead || b.dead) return;
+  if (a.atkCd > 0 || a.dead || b.dead || b.kind === 'ghost') return;
   const sa = a.isDwarf ? g.skillLevel(a, 'shoot') : a.skill;
   a.atkCd = Math.max(14, 26 - sa);
   const helpless = isHelpless(b);
@@ -276,7 +288,7 @@ function onAttacked(g: Game, b: Unit, a: Unit) {
 }
 
 // ------------------------------------------------------------------ movement helpers
-function stepPath(g: Game, u: Unit): boolean {
+export function stepPath(g: Game, u: Unit): boolean {
   if (!u.path || !u.path.length) return false;
   if (u.moveCd > 0) {
     u.moveCd--;
@@ -421,6 +433,7 @@ function slowTick(g: Game, u: Unit) {
   let bleeding = false;
   for (let k = u.wounds.length - 1; k >= 0; k--) {
     const w = u.wounds[k];
+    if (w.bleed > 0 && cd.undead) w.bleed = 0;
     if (w.bleed > 0) {
       u.blood -= w.bleed;
       w.bleed *= 0.99;
@@ -446,6 +459,31 @@ function slowTick(g: Game, u: Unit) {
   }
   if (u.hp <= 0) return killUnit(g, u, 'died of their wounds');
   if (!u.isDwarf) return;
+
+  // ---- the werebeast curse: changes at the full moon, changes back when it sets
+  if (u.cursed) {
+    const moon = g.fullMoon();
+    if (moon && u.state !== 'were' && u.state !== 'caged' && g.tick - (u.cursedAt ?? -1e9) > MOON_TICKS) {
+      endJob(g, u);
+      u.drafted = false;
+      u.state = 'were';
+      // the change knits flesh and bone: every wound is gone
+      u.wounds = [];
+      u.hp = u.maxHp;
+      u.blood = 100;
+      u.downSince = 0;
+      u.inBed = 0;
+      g.say(`${u.name} has transformed into a were${u.cursed}!`, 'death', cell, true);
+    } else if (!moon && u.state === 'were') {
+      u.state = '';
+      u.target = 0;
+      u.path = null;
+      u.wounds = [];
+      g.think(u, 'woke with no memory of the night, and blood under their nails', -6, 6);
+      g.say(`${u.name} has returned to dwarven form.`, 'info', cell);
+    }
+  }
+  if (u.state === 'were') return; // a beast has no use for beds or beer
 
   // ---- dwarf needs
   const asleep = u.job?.type === 'sleep';
@@ -680,7 +718,7 @@ function dwarfTick(g: Game, u: Unit) {
     if (u.job) runJob(g, u);
     return;
   }
-  if (u.state === 'berserk') return hostileTick(g, u);
+  if (u.state === 'berserk' || u.state === 'were') return hostileTick(g, u);
   if (g.tick >= u.nextThink) {
     u.nextThink = g.tick + 10;
     if (u.state !== 'tantrum' && u.state !== 'mood') decide(g, u);
@@ -904,6 +942,8 @@ export function tickUnit(g: Game, u: Unit) {
     if (u.dead) return;
   }
   if (u.state === 'caged' || u.carriedBy) return;
+  const brain = brains[u.kind];
+  if (brain && brain(g, u)) return;
   if (u.isDwarf) dwarfTick(g, u);
   else if (u.faction === 'enemy') hostileTick(g, u);
   else if (u.faction === 'wild') wildTick(g, u);
@@ -923,6 +963,14 @@ export function explainUnit(g: Game, u: Unit): Explain {
   const days = (t: number) => (t / TICKS_DAY).toFixed(1);
   if (u.dead) return { status: 'Dead', tone: 'bad', lines: [] };
   if (!u.isDwarf) {
+    if (u.kind === 'ghost') {
+      e.status = 'Haunting the fortress';
+      e.tone = 'warn';
+      e.lines.push('The dead do not rest until they are buried. Put the body in a coffin; if the body is gone, have a mason engrave a memorial slab and place it (Build > Furniture). A ghost cannot be fought.');
+      return e;
+    }
+    if (u.kind === 'necromancer') e.lines.push('Raises any corpse it can see as a zombie. Kill it and everything it raised collapses: marksdwarves are ideal. Bury your dead before it gets to them.');
+    if (u.kind === 'werebeast') e.lines.push('Any dwarf it wounds is cursed, and will transform at every full moon. It leaves when the moon sets.');
     if (u.state === 'caged') e.status = 'Caged';
     else if (u.target && g.units.get(u.target)) e.status = `Attacking ${g.unitName(g.units.get(u.target)!)}`;
     else if (u.flee) e.status = 'Fleeing';
@@ -951,6 +999,10 @@ export function explainUnit(g: Game, u: Unit): Explain {
       e.lines.push('Rescue — ' + explainTask(g, 'doctor', (d) => tryRescue(g, d, u), 'u' + u.id));
     }
     if (needsFeeding(u)) e.lines.push(`Cannot fetch their own food and drink (hunger ${Math.round(u.hunger)}%, thirst ${Math.round(u.thirst)}%). A doctor will bring some.`);
+  } else if (u.state === 'were') {
+    e.status = `Transformed into a were${u.cursed}!`;
+    e.tone = 'bad';
+    e.lines.push('Will attack anyone it can reach until the moon sets, then change back with every wound healed. Keep others away, or lock the door.');
   } else if (u.state === 'berserk') {
     e.status = 'Berserk!';
     e.tone = 'bad';
@@ -986,6 +1038,7 @@ export function explainUnit(g: Game, u: Unit): Explain {
     if (u.whyIdle.startsWith('Found')) e.tone = 'warn';
   }
   if (u.lastFail && g.tick - u.lastFailTick < TICKS_DAY / 2) e.lines.push(`Earlier — ${u.lastFail}`);
+  if (u.cursed && u.state !== 'were') e.lines.push(`☾ Cursed: bitten by a were${u.cursed}. Transforms at every full moon (next in ${g.daysToMoon().toFixed(1)} days) and attacks everyone in reach. Before then, put them alone in a room and lock the door.`);
   if (u.sober > SOBER_SICK) e.lines.push(`⚠ ${days(u.sober)} days without alcohol: withdrawal is killing them. Brew drinks at a Still!`);
   else if (u.sober > SOBER_SLOW) e.lines.push(`⚠ ${days(u.sober)} days without alcohol: working and walking slowly.`);
   if ((u.wear ?? 100) < 25) {

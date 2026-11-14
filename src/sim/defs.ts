@@ -178,6 +178,7 @@ export const ITEMS: Record<string, ItemDef> = {
   chest: I({ id: 'chest', name: 'chest', cat: 'furniture', glyph: 'æ', value: 15, build: 'chest' }),
   cabinet: I({ id: 'cabinet', name: 'cabinet', cat: 'furniture', glyph: 'π', value: 15, build: 'cabinet' }),
   coffin: I({ id: 'coffin', name: 'coffin', cat: 'furniture', glyph: '0', value: 15, build: 'coffin' }),
+  slab: I({ id: 'slab', name: 'memorial slab', cat: 'furniture', glyph: '▬', value: 15, build: 'slab' }),
   statue: I({ id: 'statue', name: 'statue', cat: 'furniture', glyph: 'Ω', value: 30, build: 'statue' }),
   floodgate: I({ id: 'floodgate', name: 'floodgate', cat: 'furniture', glyph: 'X', value: 15, build: 'floodgate' }),
   mechanism: I({ id: 'mechanism', name: 'mechanism', cat: 'tools', glyph: '¤', value: 15 }),
@@ -369,9 +370,11 @@ const CLIST: CreatureDef[] = [
   cr('beast', 'forgotten beast', 'Ω', '#ff40ff', 'blob', 10, 6, 20, 'rends', 'edge', 8, { hostile: true, armor: 3 }),
   cr('demon', 'demon', '&', '#ff3020', 'were', 8, 3, 24, 'tears at', 'edge', 10, { hostile: true, armor: 4, flies: true, ranged: { dmg: 14, range: 6, verb: 'hurls hellfire at', type: 'burn' } }),
   // ---- the night
-  cr('werebeast', 'werebeast', 'W', '#c0a060', 'were', 3, 3, 13, 'bites', 'edge', 7, { hostile: true, armor: 1 }),
+  cr('werebeast', 'werebeast', 'W', '#c0a060', 'were', 1.8, 4, 9, 'bites', 'edge', 5, { hostile: true }),
+  // a cursed dwarf under the moon: dangerous, but no match for the thing that bit it
+  cr('weredwarf', 'were-dwarf', 'W', '#c0a060', 'were', 1, 5, 7, 'bites', 'edge', 3),
   cr('necromancer', 'necromancer', 'N', '#b060ff', 'dwarf', 1, 6, 4, 'strikes', 'blunt', 2, { hostile: true }),
-  cr('zombie', 'zombie', 'Z', '#80a070', 'dwarf', 1.3, 10, 7, 'claws', 'blunt', 2, { hostile: true, undead: true, armor: 1 }),
+  cr('zombie', 'zombie', 'Z', '#80a070', 'dwarf', 1.3, 10, 4, 'claws', 'blunt', 0, { hostile: true, undead: true }),
   cr('ghost', 'ghost', '☻', '#a0d0ff', 'ghost', 1, 7, 0, 'chills', 'blunt', 0, { flies: true }),
 ];
 export const CREATURES: Record<string, CreatureDef> = {};
@@ -424,6 +427,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   chest: B({ id: 'chest', name: 'Chest', w: 1, h: 1, glyphs: 'æ', fg: '#c79a55', needs: [{ type: 'chest', n: 1 }], work: 30, menu: 'furniture', item: 'chest', desc: 'Decorative storage. Makes a room nicer.' }),
   cabinet: B({ id: 'cabinet', name: 'Cabinet', w: 1, h: 1, glyphs: 'π', fg: '#c79a55', needs: [{ type: 'cabinet', n: 1 }], work: 30, menu: 'furniture', item: 'cabinet', desc: 'Decorative storage. Makes a room nicer.' }),
   coffin: B({ id: 'coffin', name: 'Coffin', w: 1, h: 1, glyphs: '0', fg: '#ccc', needs: [{ type: 'coffin', n: 1 }], work: 30, menu: 'furniture', item: 'coffin', desc: 'A final resting place. The unburied dead upset everyone.' }),
+  slab: B({ id: 'slab', name: 'Memorial Slab', w: 1, h: 1, glyphs: '▬', fg: '#ccc', needs: [{ type: 'slab', n: 1 }], work: 30, menu: 'furniture', item: 'slab', desc: 'Lays to rest the ghost of a dwarf whose body can no longer be buried.' }),
   statue: B({ id: 'statue', name: 'Statue', w: 1, h: 1, glyphs: 'Ω', fg: '#ccc', needs: [{ type: 'statue', n: 1 }], work: 30, menu: 'furniture', item: 'statue', blocks: true, desc: 'Dwarves admire statues. Blocks movement.' }),
   // workshops
   carpenter: B({ id: 'carpenter', name: "Carpenter's Workshop", w: 3, h: 3, glyphs: '"═╗ ☼║╚═ ', fg: '#c79a55', needs: [anyBuildMat], work: 150, menu: 'production', shop: true, desc: 'Beds, barrels, doors, tables and other things of wood.' }),
@@ -493,6 +497,7 @@ stone('chest', 'Make stone coffer');
 stone('cabinet', 'Make stone cabinet');
 stone('coffin', 'Make stone coffin');
 stone('statue', 'Carve statue', 1, 400);
+stone('slab', 'Engrave memorial slab', 1, 300);
 stone('floodgate', 'Make floodgate');
 R.push(
   { id: 'mech', name: 'Make mechanism', shop: ['mechanic'], labor: 'craft', work: 300, in: [{ type: 'boulder', n: 1 }], out: [{ type: 'mechanism', n: 1 }] },

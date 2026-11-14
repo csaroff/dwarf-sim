@@ -36,7 +36,7 @@ export function unitPanel(g: Game, u: Unit, nSel: number): string {
     h += btn(u.drafted ? 'Undraft <kbd>R</kbd>' : 'Draft <kbd>R</kbd>', 'draft', '', u.drafted ? 'on' : '', 'Drafted dwarves stop working, fight nearby enemies and go where you right-click');
     h += btn('Militia', 'militia', u.id, u.militia ? 'on' : '', 'Militia dwarves drop their work and fight raiders on their own, without being drafted');
     if (u.job && u.job.type !== 'idle' && !u.downSince) h += btn('Cancel job', 'canceljob', u.id);
-  } else if (u.faction === 'wild' && !d.water) h += btn(u.hunted ? 'Stop hunting' : 'Mark for hunting', 'hunt', u.id, u.hunted ? 'on' : '');
+  } else if (u.faction === 'wild' && !d.water && u.kind !== 'ghost') h += btn(u.hunted ? 'Stop hunting' : 'Mark for hunting', 'hunt', u.id, u.hunted ? 'on' : '');
   else if (u.faction === 'fort') h += btn(u.slaughter ? 'Spare' : 'Mark for slaughter', 'slaughter', u.id, u.slaughter ? 'on' : '');
   h += '</div>';
   if (u.hunted) h += whys(['Hunt — ' + explainTask(g, 'hunt', (x) => tryHunt(g, x, u), 'u' + u.id)]);
