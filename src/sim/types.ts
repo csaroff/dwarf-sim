@@ -104,6 +104,7 @@ export interface Unit {
   fun?: number; // need to relax in company, 0 (content) .. 100+ (restless)
   faith?: number; // need to pray, likewise
   god?: string; // the deity this dwarf worships
+  drillAt?: number; // militia: tick of the next training session
   spouse?: number; // unit id
   child?: boolean; // not yet grown: no work, no draft
   grownAt?: number; // tick a child comes of age
@@ -196,7 +197,7 @@ export interface Building {
 
 export interface Zone {
   id: number;
-  kind: 'stockpile' | 'meeting' | 'hospital' | 'fishing' | 'farm' | 'pasture' | 'burrow' | 'tavern' | 'temple';
+  kind: 'stockpile' | 'meeting' | 'hospital' | 'fishing' | 'farm' | 'pasture' | 'burrow' | 'tavern' | 'temple' | 'barracks';
   name: string;
   z: number;
   cells: number[];

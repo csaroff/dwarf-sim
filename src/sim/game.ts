@@ -605,7 +605,7 @@ export class Game {
 
   // ------------------------------------------------------------------ zones
   addZone(kind: Zone['kind'], cells: number[], extra: Partial<Zone> = {}): Zone {
-    const names: Record<string, string> = { stockpile: 'Stockpile', meeting: 'Meeting Hall', hospital: 'Hospital', fishing: 'Fishing Spot', farm: 'Farm Plot', pasture: 'Pasture', burrow: 'Refuge', tavern: 'Tavern', temple: 'Temple' };
+    const names: Record<string, string> = { stockpile: 'Stockpile', meeting: 'Meeting Hall', hospital: 'Hospital', fishing: 'Fishing Spot', farm: 'Farm Plot', pasture: 'Pasture', burrow: 'Refuge', tavern: 'Tavern', temple: 'Temple', barracks: 'Barracks' };
     const n = Array.from(this.zones.values()).filter((z) => z.kind === kind).length + 1;
     const z: Zone = { id: this.nextId++, kind, name: `${names[kind]} ${n}`, z: Z(cells[0]), cells: [], cats: kind === 'stockpile' ? CATS.filter((c) => c !== 'refuse' && c !== 'corpses') : [], crop: 'plump_helmet', ...extra };
     this.zones.set(z.id, z);

@@ -673,6 +673,38 @@ describe('taverns and temples', () => {
   });
 });
 
+describe('the militia', () => {
+  test('militia arm themselves from the stockpile and drill at the barracks without being told', () => {
+    const g = flatGame();
+    const soldier = dwarf(g, 40, 40, []);
+    soldier.militia = true;
+    soldier.skills.fight = 0;
+    // without a barracks the panel says skill will not grow
+    run(g, 20);
+    expect(explainUnit(g, soldier).lines.join(' ')).toMatch(/no barracks to train in.*Zones > Barracks/);
+
+    g.spawnItem('sword', MAT.iron, cell(42, 40), 1);
+    g.spawnItem('shield', MAT.oak, cell(42, 41), 1);
+    g.spawnItem('helm', MAT.iron, cell(42, 42), 1);
+    g.addZone('barracks', [cell(50, 50), cell(51, 50), cell(50, 51), cell(51, 51)]);
+    run(g, 1500, () => !!soldier.equip.weapon && !!soldier.equip.shield && !!soldier.equip.head && soldier.skills.fight > 0);
+    expect(g.itemName(g.items.get(soldier.equip.weapon)!, true)).toBe('iron short sword');
+    expect(soldier.equip.shield && soldier.equip.head).toBeTruthy();
+    expect(soldier.skills.fight).toBeGreaterThan(0);
+  });
+
+  test('a civilian leaves the weapons alone and does not drill', () => {
+    const g = flatGame();
+    const civ = dwarf(g, 40, 40, []);
+    civ.skills.fight = 0;
+    g.spawnItem('sword', MAT.iron, cell(42, 40), 1);
+    g.addZone('barracks', [cell(50, 50)]);
+    run(g, 600);
+    expect(civ.equip.weapon).toBeUndefined();
+    expect(civ.skills.fight).toBe(0);
+  });
+});
+
 describe('the alarm', () => {
   test('civilians drop their work and shelter in the refuge; militia do not; calling it off resumes work', () => {
     const g = flatGame();

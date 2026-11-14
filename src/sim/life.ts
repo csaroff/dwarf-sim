@@ -786,11 +786,30 @@ function decide(g: Game, u: Unit) {
     u.whyIdle = zs.length ? 'The alarm is raised, but there is no path to the Refuge zone. Staying put.' : 'The alarm is raised, but there is no Refuge zone to go to (Zones > Refuge). Staying put instead of working.';
     return;
   }
+  // the militia keep themselves armed, and drill every couple of days before turning to other work
+  if (u.militia) {
+    const gear = gearUp(g, u);
+    if (gear) return assign(g, u, gear);
+    if (g.tick >= (u.drillAt || 0)) {
+      const drill = tryDrill(g, u);
+      if (drill) return assign(g, u, drill);
+    }
+  }
   // long-neglected leisure comes before work; otherwise it fills idle time
   const leisure = tryLeisure(g, u, 100);
   if (leisure) return assign(g, u, leisure);
   const work = findWork(g, u);
   if (work) return assign(g, u, work);
+  if (u.militia) {
+    // nothing else to do: more drill
+    const drill = tryDrill(g, u);
+    if (drill) {
+      const why = u.whyIdle;
+      assign(g, u, drill);
+      u.whyIdle = why;
+      return;
+    }
+  }
   const spare = tryLeisure(g, u, 45);
   if (spare) {
     const why = u.whyIdle;
@@ -806,7 +825,7 @@ function decide(g: Game, u: Unit) {
   }
 }
 /** Somewhere in a zone of this kind the dwarf can walk to, or -1. */
-function zoneSpot(g: Game, u: Unit, kind: 'tavern' | 'temple'): number {
+function zoneSpot(g: Game, u: Unit, kind: 'tavern' | 'temple' | 'barracks'): number {
   const here = g.cellOf(u);
   for (const z of g.zonesOf(kind)) {
     for (let k = 0; k < 6; k++) {
@@ -828,6 +847,28 @@ function tryLeisure(g: Game, u: Unit, min: number): Job | null {
   }
   return null;
 }
+/** A training session at the barracks, if there is one to walk to. */
+function tryDrill(g: Game, u: Unit): Job | null {
+  const c = zoneSpot(g, u, 'barracks');
+  if (c < 0) return null;
+  const wpn = g.items.get(u.equip.weapon);
+  const archer = !!wpn && !!ITEMS[wpn.type].weapon?.ranged;
+  return mkJob('drill', archer ? 'Archery practice' : 'Combat drill', c, { sub: archer ? 'shoot' : 'fight' });
+}
+RUN.drill = (g, u, j) => {
+  const w = walk(g, u, idx(j.x, j.y, j.z), false);
+  if (w === 'blocked') return 'done';
+  if (w === 'going') return 'run';
+  if (++j.t < 260) return 'run';
+  // drilling alongside others teaches more than drilling alone
+  const here = g.cellOf(u);
+  let partners = 0;
+  for (const o of g.dwarves()) if (o !== u && o.job?.type === 'drill' && o.z === u.z && cheb(here, g.cellOf(o)) <= 4) partners++;
+  g.train(u, j.sub || 'fight', 45 + Math.min(2, partners) * 20);
+  u.drillAt = g.tick + TICKS_DAY * 2;
+  if (partners) g.think(u, 'sparred with comrades', 2, 3);
+  return 'done';
+};
 RUN.shelter = (g, u, j) => {
   if (!g.ev.alarm) return 'done';
   const w = walk(g, u, idx(j.x, j.y, j.z), false);
@@ -1241,6 +1282,7 @@ export function explainUnit(g: Game, u: Unit): Explain {
   if (u.cursed && u.state !== 'were') e.lines.push(`☾ Cursed: bitten by a were${u.cursed}. Transforms at every full moon (next in ${g.daysToMoon().toFixed(1)} days) and attacks everyone in reach. Before then, put them alone in a room and lock the door.`);
   if (u.sober > SOBER_SICK) e.lines.push(`⚠ ${days(u.sober)} days without alcohol: withdrawal is killing them. Brew drinks at a Still!`);
   else if (u.sober > SOBER_SLOW) e.lines.push(`⚠ ${days(u.sober)} days without alcohol: working and walking slowly.`);
+  if (u.militia && !g.zonesOf('barracks').length) e.lines.push('Militia, but there is no barracks to train in: fighting skill only grows in real fights (Zones > Barracks).');
   const mate = g.units.get(u.spouse || 0);
   if (mate && !mate.dead) e.lines.push(`Married to ${mate.name}.`);
   const kids = g.dwarves().filter((o) => o.parents?.includes(u.id));

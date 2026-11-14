@@ -29,6 +29,7 @@ export function found(g: Game) {
   };
   g.addZone('tavern', patch(x + 10, y + 3));
   g.addZone('temple', patch(x + 10, y + 8));
+  g.addZone('barracks', patch(x + 14, y + 3));
   for (let yy = y - 14; yy < y + 14; yy++) for (let xx = x - 14; xx < x + 14; xx++) {
     if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
     const c = idx(xx, yy, sz(xx, yy));

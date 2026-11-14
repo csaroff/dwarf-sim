@@ -59,6 +59,7 @@ const TOOLS: Record<string, Tool[]> = {
     { id: 'z_hospital', label: 'Hospital', zone: 'hospital', desc: 'Beds inside become hospital beds: the wounded are carried here and treated.' },
     { id: 'z_fishing', label: 'Fishing', zone: 'fishing', desc: 'Mark shore tiles next to water.' },
     { id: 'z_refuge', label: 'Refuge', zone: 'burrow', desc: 'Where civilians shelter when you raise the alarm (B). Pick a room deep inside, behind a door you can lock.' },
+    { id: 'z_barracks', label: 'Barracks', zone: 'barracks', desc: 'Militia dwarves come here to drill every couple of days, and whenever they are idle. Drilling together teaches more. Marksdwarves practise archery.' },
     { id: 'z_tavern', label: 'Tavern', zone: 'tavern', desc: 'Dwarves come here to drink and talk when they need to unwind. Furnish it and keep drink nearby.' },
     { id: 'z_temple', label: 'Temple', zone: 'temple', desc: 'Dwarves come here to pray. Statues and engravings make it a better one.' },
     { id: 'z_pasture', label: 'Pasture', zone: 'pasture', desc: 'Where tame animals graze.' },
