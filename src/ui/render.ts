@@ -392,10 +392,13 @@ export class Renderer {
     const crop = t === T.Floor ? g.crops.get(i) : undefined;
     const paved = (f & (F.Built | F.Smooth)) !== 0;
     const green = t === T.Tree ? (p.under ? PLANTS[2] : PLANTS[1]) : !crop && w.plant[i] ? (p.kind === 'grass' ? p : PLANTS[1]) : null;
+    // the seasons show on anything growing under the open sky
+    const season = green && !green.under && z >= w.surface[x + y * W] ? g.season : 0;
     if (green) {
-      c.fillStyle = tint(green.fg, 0.36 + r(1) * 0.08);
+      const grass = season === 3 ? '#dfe6ee' : season === 2 ? '#a89a48' : green.fg;
+      c.fillStyle = tint(grass, (season === 3 ? 0.62 : 0.36) + r(1) * 0.08);
       c.fillRect(px, py, s, s);
-      for (let k = 0; k < 2; k++) box(P(k + 2) + 1, P(k + 4) + 1, 0.6, 1.6, shade(green.fg, 0.6));
+      for (let k = 0; k < 2; k++) box(P(k + 2) + 1, P(k + 4) + 1, 0.6, 1.6, shade(grass, season === 3 ? 0.8 : 0.6));
     } else if (paved) {
       c.fillStyle = shade(m.fg, 0.3);
       c.fillRect(px, py, s, s);
@@ -423,14 +426,24 @@ export class Renderer {
           box(3.5, 6, 1, 2, bark);
           this.poly(c, px, py, [4, 2.2, 7.6, 7, 0.4, 7], shade(p.fg, 0.6));
           this.poly(c, px, py, [4, 0.3, 6.8, 4.6, 1.2, 4.6], shade(p.fg, 0.85));
+          if (season === 3) this.poly(c, px, py, [4, 0.3, 5.4, 2.4, 2.6, 2.4], '#f0f4f8'); // snow on the crown
         } else if (p.under) {
           box(3.2, 3, 1.6, 5, shade(hex6(m.fg), 0.8));
           this.disc(c, px, py, 4, 3, 3.6, shade(p.fg, 0.7), 2.3);
           this.disc(c, px, py, 3.6, 2.5, 2.6, p.fg, 1.4);
+        } else if (season === 3) {
+          // bare branches in winter
+          box(3.6, 2.4, 0.8, 5.6, bark);
+          this.poly(c, px, py, [4, 4.4, 1.6, 2, 2, 1.7, 4.2, 3.6], bark);
+          this.poly(c, px, py, [4, 3.6, 6.4, 1.4, 6.8, 1.8, 4.4, 4.2], bark);
+          box(1.4, 1.4, 1.4, 0.5, '#f0f4f8');
+          box(5.6, 1, 1.4, 0.5, '#f0f4f8');
         } else {
+          // leaves turn in autumn
+          const leaf = season === 2 ? ['#d07030', '#c8a030', '#b04828'][(x * 7 + y * 13) % 3] : p.fg;
           box(3.5, 5.5, 1, 2.5, bark);
-          this.disc(c, px, py, 4, 3.8, 3.5, shade(p.fg, 0.6));
-          this.disc(c, px, py, 3.3, 3, 2.1, shade(p.fg, 0.9));
+          this.disc(c, px, py, 4, 3.8, 3.5, shade(leaf, 0.6));
+          this.disc(c, px, py, 3.3, 3, 2.1, shade(leaf, 0.9));
         }
         break;
       case T.Ramp: {
@@ -988,7 +1001,7 @@ export class Renderer {
     this.clamp();
     const { x: cx, y: cy, z, tile: s } = this.cam;
     const now = performance.now();
-    const key = `${g.w.version}|${cx}|${cy}|${z}|${s}|${this.cw}|${this.ch}|${ov.selZone}|${Math.floor(now / 500)}`;
+    const key = `${g.w.version}|${cx}|${cy}|${z}|${s}|${this.cw}|${this.ch}|${ov.selZone}|${g.season}|${Math.floor(now / 500)}`;
     if (key !== this.key) {
       this.key = key;
       this.drawTerrain(g, ov);
