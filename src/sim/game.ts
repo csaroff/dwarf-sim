@@ -43,7 +43,7 @@ export class Game {
   // event bookkeeping (see events.ts)
   ev = {
     nextMigrants: 0, nextRaid: 0, nextCaravan: 0, nextMood: 0, nextBeast: 0, nextWild: 0, nextThief: 0,
-    nextWere: 0, nextNecro: 0, nextMega: 0, drained: 0, alarm: false,
+    nextWere: 0, nextNecro: 0, nextMega: 0, nextSnatch: 0, drained: 0, alarm: false,
     mayor: 0, nextMandate: 0, mandate: null as null | { type: string; name: string; where: string; n: number; made: number; until: number },
     cavern: 0, magmaSeen: false, hell: false, raids: 0, deaths: 0, migrants: 0, lost: false, artifacts: 0,
   };

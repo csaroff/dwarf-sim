@@ -8,7 +8,7 @@ import { idx } from '../src/sim/world';
 export function flatGame(seed = 7): Game {
   const g = new Game(seed, true);
   // push the scripted events far into the future so scenarios are not interrupted
-  for (const k of ['nextMigrants', 'nextRaid', 'nextCaravan', 'nextMood', 'nextBeast', 'nextThief', 'nextWere', 'nextNecro', 'nextMega', 'nextMandate'] as const) g.ev[k] = 1e9;
+  for (const k of ['nextMigrants', 'nextRaid', 'nextCaravan', 'nextMood', 'nextBeast', 'nextThief', 'nextWere', 'nextNecro', 'nextMega', 'nextMandate', 'nextSnatch'] as const) g.ev[k] = 1e9;
   return g;
 }
 export const cell = (x: number, y: number, z = 20) => idx(x, y, z);

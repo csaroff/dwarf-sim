@@ -1257,6 +1257,12 @@ export function explainUnit(g: Game, u: Unit): Explain {
   }
   if (u.carriedBy) {
     const c = g.units.get(u.carriedBy);
+    if (c && !c.isDwarf) {
+      e.status = `Being carried off by ${g.unitName(c)}!`;
+      e.tone = 'bad';
+      e.lines.push('If it reaches the edge of the map the child is gone for good. Kill it: select a soldier and right-click the goblin.');
+      return e;
+    }
     e.status = `Being carried to bed by ${c ? c.name : 'someone'}`;
     e.tone = 'warn';
   } else if (u.downSince && downReason(u)) {

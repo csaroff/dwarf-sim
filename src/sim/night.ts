@@ -229,6 +229,73 @@ RUN.drain = (g, u, j) => {
   return 'done';
 };
 
+// ------------------------------------------------------------------ snatchers
+/** A goblin who has come for a child: grabs the nearest one and runs for the edge of the map. */
+export function snatcher(g: Game): Unit {
+  const u = g.addUnit('snatcher', g.randomEdgeCell(), 'enemy');
+  u.name = g.rng.pick(['Snodub', 'Utes', 'Bax', 'Zom', 'Stozu']);
+  u.home = undefined;
+  u.leaveAt = g.tick + TICKS_DAY * 3;
+  return u;
+}
+brains.snatcher = (g, u) => {
+  const here = g.cellOf(u);
+  const child = g.units.get(u.stolen || 0);
+  if (child && !child.dead && child.carriedBy === u.id) {
+    // got one: run for the edge, child under one arm
+    if (u.smash === undefined || !g.w.connected(here, u.smash)) {
+      let best = here, bd = 1e9;
+      for (let k = 0; k < 30; k++) {
+        const c = g.randomEdgeCell();
+        if (dist(here, c) < bd && g.w.connected(here, c)) {
+          best = c;
+          bd = dist(here, c);
+        }
+      }
+      u.smash = best; // (reused as "where I am running to": a snatcher breaks nothing)
+    }
+    const r = walk(g, u, u.smash, false, true, true);
+    g.moveUnit(child, g.cellOf(u));
+    if (r === 'going') return true;
+    g.say(`${cap(g.unitName(u))} has escaped with ${child.name}! The child is gone.`, 'death', g.cellOf(u), true);
+    for (const id of child.parents || []) {
+      const p = g.units.get(id);
+      if (p && !p.dead) g.think(p, 'had a child stolen by goblins', -18, 20);
+    }
+    g.units.delete(child.id);
+    child.dead = true;
+    g.units.delete(u.id);
+    u.dead = true;
+    return true;
+  }
+  if (u.flee || (u.leaveAt && g.tick > u.leaveAt) || u.hp < u.maxHp * 0.5) {
+    u.flee = true;
+    return false; // gives up: the default behaviour takes it home
+  }
+  // the nearest child it can get to
+  let prey: Unit | null = null, bd = 1e9;
+  for (const o of g.dwarves()) {
+    if (!o.child || o.carriedBy) continue;
+    const d = dist(here, g.cellOf(o));
+    if (d < bd && g.w.canReach(here, g.cellOf(o), true)) {
+      prey = o;
+      bd = d;
+    }
+  }
+  if (!prey) {
+    u.flee = true;
+    return false;
+  }
+  if (walk(g, u, g.cellOf(prey), true) !== 'there') return true;
+  prey.carriedBy = u.id;
+  prey.job = null;
+  prey.path = null;
+  u.stolen = prey.id;
+  u.smash = undefined;
+  g.say(`${cap(g.unitName(u))} has snatched ${prey.name}! Kill it before it reaches the edge of the map!`, 'death', here, true);
+  return true;
+};
+
 // ------------------------------------------------------------------ megabeasts
 export function megabeast(g: Game, kind?: string): Unit {
   const d = kind ? CREATURES[kind] : g.rng.pick(creaturesOf('mega'));
@@ -260,6 +327,12 @@ export function tickNight(g: Game) {
     e.nextNecro = t + TICKS_DAY * (40 + g.rng.int(30));
     if (pop >= 20) necroSiege(g);
   }
+  if (!e.nextSnatch) e.nextSnatch = t + TICKS_DAY * 30;
+  if (t >= e.nextSnatch) {
+    e.nextSnatch = t + TICKS_DAY * (25 + g.rng.int(25));
+    // they come for children, and only where there are adults enough to give chase
+    if (pop >= 10 && g.dwarves().some((u) => u.child)) snatcher(g);
+  }
   if (t >= e.nextMega) {
     e.nextMega = t + TICKS_DAY * (60 + g.rng.int(50));
     if (pop >= 30) megabeast(g);
@@ -270,6 +343,10 @@ export function nightAlerts(g: Game, out: Alert[]) {
   for (const u of g.dwarves()) {
     if (u.state === 'were') out.push({ id: 'were' + u.id, sev: 'bad', text: `${first(u)}: were${u.cursed}!`, detail: `${u.name} has transformed and will attack anyone in reach until the moon sets. Keep everyone away or lock them in.`, unit: u.id, x: u.x, y: u.y, z: u.z });
     else if (u.cursed && moon < 3) out.push({ id: 'curse' + u.id, sev: moon < 1 ? 'bad' : 'warn', text: `${first(u)} turns in ${moon.toFixed(1)}d`, detail: `${u.name} carries the were${u.cursed} curse and transforms when the moon is full. Send them into a room alone (select, right-click "Go here") and lock the door (click the door) until it passes. The change heals every wound.`, unit: u.id });
+  }
+  for (const u of g.units.values()) {
+    const kid = u.kind === 'snatcher' ? g.units.get(u.stolen || 0) : undefined;
+    if (kid && kid.carriedBy === u.id) out.push({ id: 'snatch' + u.id, sev: 'bad', text: `${first(kid)} snatched!`, detail: `${cap(g.unitName(u))} is carrying ${kid.name} to the edge of the map. If it gets there the child is gone for good. Draft someone fast (or a marksdwarf) and right-click the goblin: Attack. Killing it frees the child.`, x: u.x, y: u.y, z: u.z });
   }
   const known = g.dwarves().find((u) => u.vampire && u.exposed);
   if (known) out.push({ id: 'vampire', sev: 'bad', text: `Vampire: ${first(known)}`, detail: `${known.name} is a known vampire and will keep feeding on sleepers every week or two. Kill it (select a soldier and right-click it: Attack), or lock it in a room alone: it needs no food, drink or sleep, so a walled-in vampire makes a tireless worker.`, unit: known.id });

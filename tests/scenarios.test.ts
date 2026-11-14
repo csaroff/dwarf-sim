@@ -3,7 +3,7 @@ import { MAT, PLANT, T, TICKS_DAY, TICKS_YEAR } from '../src/sim/defs';
 import { beast, beginMood, computeAlerts, raid, trade } from '../src/sim/events';
 import { Game, MOON_DAYS } from '../src/sim/game';
 import { birth, issueMandate, maybeMarry } from '../src/sim/civics';
-import { megabeast, necroSiege, werebeast } from '../src/sim/night';
+import { megabeast, necroSiege, snatcher, werebeast } from '../src/sim/night';
 import { DG, canPlace, explainTask, placeBuilding, toggleLever, tryDesig } from '../src/sim/jobs';
 import { TERRITORY, explainUnit, fallDamage, killUnit, lineOfSight } from '../src/sim/life';
 import { optionsAt, order, setDraft } from '../src/sim/orders';
@@ -898,6 +898,43 @@ test('children do not make a fortress look stronger to its enemies', () => {
   // and the first raid is the pair of scouts ten dwarves would draw, not five
   raid(g);
   expect(Array.from(g.units.values()).filter((u) => u.kind === 'goblin').length).toBe(2);
+});
+
+describe('goblin snatchers', () => {
+  const family = () => {
+    const g = flatGame();
+    const a = dwarf(g, 40, 40, []);
+    const b = dwarf(g, 41, 40, []);
+    a.nextThink = b.nextThink = 1e9; // the parents do not notice in time
+    const baby = birth(g, a, b);
+    const gob = snatcher(g);
+    g.moveUnit(gob, cell(46, 40));
+    return { g, a, b, baby, gob };
+  };
+
+  test('a snatcher grabs a child and runs; killing it frees the child', () => {
+    const { g, baby, gob } = family();
+    run(g, 300, () => baby.carriedBy === gob.id);
+    expect(baby.carriedBy).toBe(gob.id);
+    expect(g.attention?.text).toMatch(/has snatched .*! Kill it before it reaches the edge of the map/);
+    expect(explainUnit(g, baby).status).toMatch(/Being carried off by .* the goblin snatcher/);
+    expect(alertText(g)).toMatch(/snatched!.*Killing it frees the child/s);
+
+    killUnit(g, gob, 'been shot dead');
+    expect(baby.carriedBy).toBeFalsy();
+    expect(baby.dead).toBe(false);
+    run(g, 60);
+    expect(explainUnit(g, baby).lines.join(' ')).toMatch(/A child: plays/);
+  });
+
+  test('if it reaches the edge the child is gone, and the parents never get over it', () => {
+    const { g, a, baby, gob } = family();
+    run(g, 3000, () => !g.units.has(baby.id));
+    expect(g.units.has(baby.id)).toBe(false);
+    expect(g.units.has(gob.id)).toBe(false);
+    expect(g.history.some((h) => /has escaped with .*The child is gone/.test(h.text))).toBe(true);
+    expect(a.thoughts.some((t) => t.text === 'had a child stolen by goblins')).toBe(true);
+  });
 });
 
 describe('the mayor', () => {

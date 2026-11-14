@@ -19,7 +19,7 @@ export function cannotOrder(g: Game, u: Unit): string {
   if (u.dead) return `${n} is dead`;
   if (!u.isDwarf || u.faction !== 'fort') return 'Not one of your dwarves';
   if (u.child) return `${n} is a child: too young to take orders`;
-  if (u.carriedBy) return `${n} is being carried to bed`;
+  if (u.carriedBy) return `${n} is being carried`;
   if (u.downSince) return `${n} cannot do anything: ${downReason(u) || 'incapacitated'}`;
   if (u.state === 'tantrum') return `${n} is throwing a tantrum and will not listen`;
   if (u.state === 'berserk') return `${n} has gone berserk`;

@@ -405,6 +405,7 @@ const CLIST: CreatureDef[] = [
   cr('alligator', 'alligator', 'A', '#508050', 'croc', 2.2, 6, 11, 'bites', 'edge', 4, { predator: true, water: true, meat: 9, where: 'river', freq: 0.3 }),
   // ---- invaders
   cr('goblin', 'goblin', 'g', '#60e040', 'goblin', 0.9, 6, 5, 'strikes', 'blunt', 3, { hostile: true }),
+  cr('snatcher', 'goblin snatcher', 'g', '#a0e060', 'goblin', 0.8, 4, 3, 'strikes', 'blunt', 2, { hostile: true }),
   cr('kobold', 'kobold thief', 'k', '#e0a060', 'goblin', 0.4, 4, 2, 'stabs', 'pierce', 1, { hostile: true, thief: true }),
   cr('troll', 'troll', 'T', '#60a0a0', 'goblin', 4, 7, 13, 'smashes', 'blunt', 3, { smasher: true, hostile: true, where: 'cavern', danger: 3, freq: 0.4 }),
   cr('ogre', 'ogre', 'O', '#c0a060', 'goblin', 5, 7, 15, 'clubs', 'blunt', 3, { smasher: true, hostile: true }),
