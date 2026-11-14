@@ -21,6 +21,9 @@ const bar = (label: string, frac: number, color: string, note = '') =>
 const tone = (frac: number) => (frac > 0.5 ? '#6ac46a' : frac > 0.25 ? '#e0b040' : '#e05a4a');
 const whys = (lines: string[]) => lines.map((l) => `<div class="why">${esc(l)}</div>`).join('');
 
+/** what to call someone with a skill: most skills are labors, but fighting and shooting are not */
+const skillWord = (s: string) => (s === 'fight' ? 'fighter' : s === 'shoot' ? 'marksdwarf' : (LABOR_NAME[s as keyof typeof LABOR_NAME] || s).toLowerCase());
+
 // ------------------------------------------------------------------ unit
 export function unitPanel(g: Game, u: Unit, nSel: number): string {
   const e = explainUnit(g, u);
@@ -75,7 +78,7 @@ export function unitPanel(g: Game, u: Unit, nSel: number): string {
     }
     h += '</div>';
     const sk = SKILLS.filter((s) => g.skillLevel(u, s) > 0).sort((a, b) => u.skills[b] - u.skills[a]);
-    if (sk.length) h += `<h3>Skills</h3><div class="list"><div>${sk.map((s) => `${SKILL_LEVELS[g.skillLevel(u, s)]} ${s === 'fight' ? 'fighter' : LABOR_NAME[s as keyof typeof LABOR_NAME].toLowerCase()}`).join(' · ')}</div></div>`;
+    if (sk.length) h += `<h3>Skills</h3><div class="list"><div>${sk.map((s) => `${SKILL_LEVELS[g.skillLevel(u, s)]} ${skillWord(s)}`).join(' · ')}</div></div>`;
   }
   const gear = Object.entries(u.equip).map(([slot, id]) => {
     const it = g.items.get(id);
