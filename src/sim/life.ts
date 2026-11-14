@@ -791,9 +791,13 @@ function hostileTick(g: Game, u: Unit) {
   }
   if (g.tick >= u.nextThink) {
     u.nextThink = g.tick + 15;
-    // raiders hunt the whole map; things that live in the caverns only defend their territory
-    const t = nearestHostile(g, u, u.home !== undefined && u.faction === 'enemy' && !u.isDwarf ? 12 : 200);
+    // raiders hunt the whole map; things that live in the caverns only defend their territory,
+    // which is measured from the lair and not from wherever the last chase ended
+    const lair = u.home !== undefined && u.faction === 'enemy' && !u.isDwarf ? u.home : -1;
+    let t = nearestHostile(g, u, lair >= 0 ? TERRITORY : 200);
+    if (t && lair >= 0 && dist(g.cellOf(t), lair) > TERRITORY) t = null;
     u.target = t ? t.id : 0;
+    if (!t && lair >= 0 && dist(g.cellOf(u), lair) > 6) u.path = g.w.findPath(g.cellOf(u), lair, false) || u.path; // back to the lair
     if (!t && (!u.path || !u.path.length)) {
       const c = g.randomNear(u.home ?? g.cellOf(u), 6);
       u.path = g.w.findPath(g.cellOf(u), c, false);
