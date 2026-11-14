@@ -52,6 +52,8 @@ export function unitPanel(g: Game, u: Unit, nSel: number): string {
     h += bar('Thirst', 1 - u.thirst / 100, tone(1 - u.thirst / 100), u.thirst > 100 ? 'dehydrated' : u.thirst > 50 ? 'thirsty' : 'quenched');
     h += bar('Rest', 1 - u.tired / 100, tone(1 - u.tired / 100), u.tired > 80 ? 'tired' : 'rested');
     const sob = 1 - u.sober / SOBER_SICK;
+    const wear = u.wear ?? 100;
+    h += bar('Clothes', wear / 100, tone(wear / 100), wear <= 0 ? 'naked' : wear < 25 ? 'tattered' : wear < 60 ? 'worn' : 'fine');
     h += bar('Booze', sob, u.sober > SOBER_SLOW ? '#e05a4a' : '#d0a040', u.sober > SOBER_SLOW ? `${(u.sober / TICKS_DAY).toFixed(1)}d sober!` : 'tipsy');
   }
   if (u.wounds.length) h += `<h3>Wounds</h3><div class="list">${u.wounds.map((w) => `<div class="${w.treated ? '' : 'red'}">${esc(woundText(w))}</div>`).join('')}</div>`;

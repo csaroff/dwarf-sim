@@ -3,7 +3,7 @@ import { BUILDINGS, CREATURES, ITEMS, MAT, MATS, PARTS, PART_W, TICKS_DAY } from
 import { Game } from './game';
 import {
   RUN, assign, canWalk, endJob, explainTask, findWork, hook, isJob, moveDelay, needsFeeding, needsRest, needsTending, runJob, tryDrink, tryEat, tryRescue, tryRest,
-  trySleep, tryTend, walk,
+  tryDress, trySleep, tryTend, walk,
 } from './jobs';
 import type { Item, Job, Unit, Wound } from './types';
 import { DIRS8, X, Y, Z, cheb, dist, idx, inMap } from './world';
@@ -46,6 +46,7 @@ export function killUnit(g: Game, u: Unit, cause: string, by?: Unit) {
   g.units.delete(u.id);
 }
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const an = (s: string) => (/^[aeiou]/i.test(s) ? 'an ' : 'a ') + s;
 
 // ------------------------------------------------------------------ wounds
 function addWound(g: Game, u: Unit, part: number, sev: 1 | 2, dtype: string) {
@@ -100,24 +101,126 @@ export function downReason(u: Unit): string {
 function weaponOf(g: Game, u: Unit): Item | undefined {
   return g.items.get(u.equip.weapon) || g.items.get(u.equip.axe) || g.items.get(u.equip.pick);
 }
+/** protection on a body part: creature hide plus whatever armor covers it */
 function armorAt(g: Game, u: Unit, part: number): number {
-  const slot = part === 0 ? 'head' : part >= 5 ? 'legs' : 'body';
-  const it = g.items.get(u.equip[slot]);
-  let p = CREATURES[u.kind].armor || 0;
-  if (it) p += ITEMS[it.type].armor!.prot * (MATS[it.mat].armor ?? 0.5) * (1 + it.q * 0.1);
+  const piece = (slot: string, share = 1) => {
+    const it = g.items.get(u.equip[slot]);
+    return it && ITEMS[it.type].armor ? ITEMS[it.type].armor!.prot * (MATS[it.mat].armor ?? 0.5) * (1 + it.q * 0.1) * share : 0;
+  };
+  let p = CREATURES[u.state === 'were' ? 'werebeast' : u.kind].armor || 0;
+  if (part === 0) p += piece('head');
+  else if (part <= 2) p += piece('body');
+  else if (part <= 4) p += piece('hands') + piece('body', 0.5); // sleeves
+  else p += piece('legs') + piece('feet', 0.5);
   return p;
 }
 export function fightSkill(g: Game, u: Unit) {
+  if (u.state === 'were') return CREATURES.werebeast.skill;
   return u.isDwarf ? g.skillLevel(u, 'fight') : u.skill;
 }
+/** the creature whose natural weapons this unit fights with (a transformed dwarf fights as a werebeast) */
+const body = (u: Unit) => CREATURES[u.state === 'were' ? 'werebeast' : u.kind];
+const nameOf = (g: Game, u: Unit) => (u.isDwarf ? first(u) : g.unitName(u));
+
+export interface Ranged {
+  dmg: number;
+  range: number;
+  verb: string;
+  type: 'pierce' | 'burn';
+  wpn?: Item;
+  ammo?: Item;
+}
+/** What this unit can attack with from a distance right now (a loaded crossbow, fiery breath), or null. */
+export function rangedOf(g: Game, u: Unit): Ranged | null {
+  if (u.state === 'were') return null;
+  const d = CREATURES[u.kind];
+  if (d.ranged) return d.ranged;
+  const wpn = g.items.get(u.equip.weapon);
+  const wd = wpn ? ITEMS[wpn.type].weapon : undefined;
+  if (!wpn || !wd || !wd.ranged) return null;
+  const ammo = g.items.get(u.equip.ammo);
+  if (!ammo || ammo.type !== wd.ranged.ammo) return null;
+  return { dmg: wd.dmg * (MATS[ammo.mat].weapon ?? 0.7) * (1 + wpn.q * 0.1), range: wd.ranged.range, verb: wd.verb, type: 'pierce', wpn, ammo };
+}
+/** Can something at cell a see (and shoot) cell b? Walls, trees and closed doors block; open air and water do not. */
+export function lineOfSight(g: Game, a: number, b: number): boolean {
+  const w = g.w;
+  const ax = X(a), ay = Y(a), az = Z(a), bx = X(b), by = Y(b), bz = Z(b);
+  const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay), Math.abs(bz - az)) * 2;
+  let pz = az;
+  for (let k = 1; k < n; k++) {
+    const t = k / n;
+    const x = Math.round(ax + (bx - ax) * t), y = Math.round(ay + (by - ay) * t), z = Math.round(az + (bz - az) * t);
+    const c = idx(x, y, z);
+    if (c !== a && c !== b) {
+      const tl = w.tile[c];
+      if (tl === 1 || tl === 5 || w.block[c] & 4) return false;
+    }
+    if (z !== pz) {
+      // passing between levels needs a hole in the floor of the upper one
+      const up = idx(x, y, Math.max(z, pz));
+      if (w.tile[up] === 2 || w.tile[up] === 1) return false;
+      pz = z;
+    }
+  }
+  if (bz !== pz) {
+    const up = bz > pz ? b : idx(bx, by, pz);
+    if (w.tile[up] === 2 && up !== b) return false;
+  }
+  return true;
+}
+export function canShoot(g: Game, a: Unit, b: Unit, r: Ranged): boolean {
+  const ca = g.cellOf(a), cb = g.cellOf(b);
+  return cheb(ca, cb) <= r.range && Math.abs(a.z - b.z) <= 3 && lineOfSight(g, ca, cb);
+}
+
+/** A blow has landed: armor, damage, wounds, the log line, and death. */
+function strike(g: Game, a: Unit, b: Unit, base: number, dtype: string, verb: string, withW: string, sa: number) {
+  let total = 0;
+  for (const w of PART_W) total += w;
+  let roll = g.rng.int(total), part = 0;
+  while (roll >= PART_W[part]) roll -= PART_W[part++];
+  const prot = armorAt(g, b, part) * (dtype === 'blunt' ? 0.7 : dtype === 'burn' ? 0.5 : 1);
+  const dmg = Math.max(1, base * (0.6 + g.rng.next() * 0.8) * (1 + sa * 0.04) - prot);
+  b.hp -= dmg;
+  const frac = dmg / b.maxHp;
+  let text = '';
+  if (frac >= 0.3) {
+    text = addWound(g, b, part, 2, dtype).desc;
+    if (part === 0 && b.hp < b.maxHp * 0.45 && g.rng.chance(0.5)) b.hp = 0;
+  } else if (frac >= 0.1) text = addWound(g, b, part, 1, dtype).desc;
+  const an = cap(nameOf(g, a)), bn = nameOf(g, b);
+  if (a.faction === 'fort' || b.faction === 'fort') {
+    if (text) g.say(`${an} ${verb} ${bn} in the ${PARTS[part]}${withW}: ${text}!`, 'combat', g.cellOf(b));
+    else if (prot > base * 0.8 && g.rng.chance(0.3)) g.say(`${an} ${verb} ${bn}, but the blow glances off the armor.`, 'combat', g.cellOf(b));
+  }
+  onStruck(g, a, b, text !== '');
+  if (b.hp <= 0 && !b.dead) {
+    const by = a.isDwarf ? a.name : g.unitName(a);
+    killUnit(g, b, dtype === 'burn' ? `been burned to death by ${by}` : part === 0 && dtype === 'edge' ? `been beheaded by ${by}` : withW.includes('bolt') ? `been shot dead by ${by}` : `been struck down by ${by}`, a);
+  }
+}
+/** hooks for curses and the like (events.ts plugs in) */
+export let onStruck: (g: Game, a: Unit, b: Unit, wounded: boolean) => void = () => {};
+export function setOnStruck(f: typeof onStruck) {
+  onStruck = f;
+}
+function blocks(g: Game, a: Unit, b: Unit, helpless: boolean, sb: number): boolean {
+  const shield = g.items.get(b.equip.shield);
+  if (!shield || helpless || b.state === 'were' || !g.rng.chance(0.25 + sb * 0.03)) return false;
+  g.train(b, 'fight', 3);
+  if (a.isDwarf || b.isDwarf) g.say(`${cap(nameOf(g, a))} attacks, but ${nameOf(g, b)} blocks with the ${g.itemName(shield, true)}.`, 'combat', g.cellOf(b));
+  return true;
+}
+const isHelpless = (b: Unit) => (b.downSince > 0 && (b.blood < 35 || b.hp < b.maxHp * 0.25)) || b.job?.type === 'sleep' || b.state === 'caged';
+
 export function attack(g: Game, a: Unit, b: Unit) {
   if (a.atkCd > 0 || a.dead || b.dead) return;
-  const cd = CREATURES[a.kind];
+  const cd = body(a);
   const sa = fightSkill(g, a);
   a.atkCd = Math.max(6, 13 - Math.floor(sa / 3));
   // a fighter with a broken leg still has a weapon arm: only the unconscious, the sleeping and the caged are helpless
-  const out = b.downSince > 0 && (b.blood < 35 || b.hp < b.maxHp * 0.25);
-  const helpless = out || b.job?.type === 'sleep' || b.state === 'caged';
+  const helpless = isHelpless(b);
   const sb = helpless ? -10 : fightSkill(g, b);
   // ganging up: every other attacker already on the target makes it easier to land a blow
   let allies = 0;
@@ -125,47 +228,46 @@ export function attack(g: Game, a: Unit, b: Unit) {
   onAttacked(g, b, a);
   g.train(a, 'fight', 1);
   if (!g.rng.chance(Math.min(0.95, Math.max(0.15, 0.55 + (sa - sb) * 0.06 + Math.min(3, allies) * 0.1)))) return;
-  const an = cap(a.isDwarf ? first(a) : g.unitName(a)), bn = b.isDwarf ? first(b) : g.unitName(b);
-  const shield = g.items.get(b.equip.shield);
-  if (shield && !helpless && g.rng.chance(0.25 + sb * 0.03)) {
-    g.train(b, 'fight', 3);
-    if (a.isDwarf || b.isDwarf) g.say(`${an} attacks, but ${bn} blocks with the ${g.itemName(shield, true)}.`, 'combat', g.cellOf(b));
-    return;
-  }
-  const wpn = weaponOf(g, a);
+  if (blocks(g, a, b, helpless, sb)) return;
+  const wpn = a.state === 'were' ? undefined : weaponOf(g, a);
   const wd = wpn ? ITEMS[wpn.type].weapon! : null;
-  const base = wd ? wd.dmg * (MATS[wpn!.mat].weapon ?? 0.7) * (1 + wpn!.q * 0.1) : cd.dmg;
-  const dtype = wd ? wd.type : cd.dtype;
-  let total = 0;
-  for (const w of PART_W) total += w;
-  let roll = g.rng.int(total), part = 0;
-  while (roll >= PART_W[part]) roll -= PART_W[part++];
-  const prot = armorAt(g, b, part) * (dtype === 'blunt' ? 0.7 : 1);
-  const dmg = Math.max(1, base * (0.6 + g.rng.next() * 0.8) * (1 + sa * 0.04) - prot);
-  b.hp -= dmg;
   g.train(a, 'fight', 3);
-  const frac = dmg / b.maxHp;
-  let text = '';
-  if (frac >= 0.3) {
-    const w = addWound(g, b, part, 2, dtype);
-    text = `${w.desc}`;
-    if (part === 0 && b.hp < b.maxHp * 0.45 && g.rng.chance(0.5)) b.hp = 0;
-  } else if (frac >= 0.1) text = addWound(g, b, part, 1, dtype).desc;
-  if (a.faction === 'fort' || b.faction === 'fort') {
-    const verb = wd ? wd.verb : cd.verb;
-    const withW = wpn ? ` with ${a.isDwarf ? 'a' : 'its'} ${g.itemName(wpn, true)}` : '';
-    if (text) g.say(`${an} ${verb} ${bn} in the ${PARTS[part]}${withW}: ${text}!`, 'combat', g.cellOf(b));
-    else if (prot > base * 0.8 && g.rng.chance(0.3)) g.say(`${an} ${verb} ${bn}, but the blow glances off the armor.`, 'combat', g.cellOf(b));
+  // a crossbow up close is just an awkward club
+  if (wd && wd.ranged) return strike(g, a, b, 4, 'blunt', 'bashes', ` with ${a.isDwarf ? an(g.itemName(wpn!, true)) : 'its ' + g.itemName(wpn!, true)}`, sa);
+  const base = wd ? wd.dmg * (MATS[wpn!.mat].weapon ?? 0.7) * (1 + wpn!.q * 0.1) : cd.dmg;
+  strike(g, a, b, base, wd ? wd.type : cd.dtype, wd ? wd.verb : cd.verb, wpn ? ` with ${a.isDwarf ? an(g.itemName(wpn, true)) : 'its ' + g.itemName(wpn, true)}` : '', sa);
+}
+/** Loose a bolt (or a gout of fire) at a distant target. */
+export function shoot(g: Game, a: Unit, b: Unit, r: Ranged) {
+  if (a.atkCd > 0 || a.dead || b.dead) return;
+  const sa = a.isDwarf ? g.skillLevel(a, 'shoot') : a.skill;
+  a.atkCd = Math.max(14, 26 - sa);
+  const helpless = isHelpless(b);
+  onAttacked(g, b, a);
+  g.train(a, 'shoot', 4);
+  const cb = g.cellOf(b);
+  const d = cheb(g.cellOf(a), cb);
+  const hit = g.rng.chance(Math.min(0.95, Math.max(0.1, 0.5 + sa * 0.05 - d * 0.025 + (helpless ? 0.3 : 0))));
+  let withW = '';
+  if (r.ammo) {
+    withW = ` with ${an(MATS[r.ammo.mat].name + ' bolt')}`;
+    // some bolts can be picked up again afterwards
+    if (g.rng.chance(hit ? 0.25 : 0.4) && g.w.passable(cb)) g.spawnItem(r.ammo.type, r.ammo.mat, cb, 1);
+    if (--r.ammo.n <= 0) {
+      g.removeItem(r.ammo);
+      if (a.isDwarf) g.say(`${first(a)} is out of bolts!`, 'bad', g.cellOf(a));
+    }
   }
-  if (b.hp <= 0) {
-    const how = part === 0 && dtype === 'edge' ? `been beheaded by ${a.isDwarf ? a.name : g.unitName(a)}` : `been struck down by ${a.isDwarf ? a.name : g.unitName(a)}`;
-    killUnit(g, b, how, a);
-  }
+  if (!hit) return;
+  if (r.type !== 'burn' && blocks(g, a, b, helpless, helpless ? -10 : fightSkill(g, b))) return;
+  g.train(a, 'shoot', 8);
+  strike(g, a, b, r.dmg, r.type, r.verb, withW, sa);
 }
 function onAttacked(g: Game, b: Unit, a: Unit) {
   if (!b.isDwarf) {
     const d = CREATURES[b.kind];
     if (b.faction === 'wild' && !d.predator && d.dmg < 4) b.flee = true;
+    else if (b.faction === 'wild' && rangedOf(g, a) && !g.w.canReach(g.cellOf(b), g.cellOf(a), true)) b.flee = true; // shot from where it cannot get at the shooter
     else if (!b.target) b.target = a.id;
     return;
   }
@@ -198,6 +300,13 @@ export function chase(g: Game, u: Unit, t: Unit): boolean {
     attack(g, u, t);
     return true;
   }
+  // anything that can shoot stands its ground and shoots once it has a clear line
+  const r = rangedOf(g, u);
+  if (r && canShoot(g, u, t, r)) {
+    u.path = null;
+    shoot(g, u, t, r);
+    return true;
+  }
   if (!u.path || !u.path.length || (u.chaseAt !== tc && (g.tick + u.id) % 8 === 0)) {
     const p = g.w.findPath(here, tc, true, false, false);
     if (!p) {
@@ -214,6 +323,7 @@ export function chase(g: Game, u: Unit, t: Unit): boolean {
 /** nearest unit hostile to u within range (reachable ones only if `reach`) */
 export function nearestHostile(g: Game, u: Unit, range: number, reach = true): Unit | null {
   const here = g.cellOf(u);
+  const ranged = reach ? rangedOf(g, u) : null;
   let best: Unit | null = null, bd = range + 0.5;
   for (const o of g.units.values()) {
     if (!g.hostile(u, o)) continue;
@@ -221,7 +331,8 @@ export function nearestHostile(g: Game, u: Unit, range: number, reach = true): U
     const d = cheb(here, g.cellOf(o)) + Math.abs(o.z - u.z) * 2;
     if (d >= bd) continue;
     if (CREATURES[o.kind].water) continue;
-    if (reach && !g.w.canReach(here, g.cellOf(o), true)) continue;
+    // a target counts if it can be walked to, or shot from here
+    if (reach && !g.w.canReach(here, g.cellOf(o), true) && !(ranged && canShoot(g, u, o, ranged))) continue;
     best = o;
     bd = d;
   }
@@ -343,6 +454,7 @@ function slowTick(g: Game, u: Unit) {
   u.hunger += HUNGER_RATE * 10 * needs;
   u.thirst += THIRST_RATE * 10 * needs;
   u.tired += TIRED_RATE * 10 * (u.state === 'mood' ? 0 : 1);
+  u.wear = Math.max(0, (u.wear ?? 100) - 1000 / (TICKS_DAY * 40)); // an outfit lasts most of a year
   u.sober += 10;
   if (u.hunger >= STARVE) return killUnit(g, u, 'starved to death');
   if (u.thirst >= DEHYDRATE) return killUnit(g, u, 'died of thirst');
@@ -356,6 +468,8 @@ function slowTick(g: Game, u: Unit) {
     if (u.hunger > 100) g.think(u, 'is starving', -8, 1);
     if (u.thirst > 100) g.think(u, 'is parched', -8, 1);
     if (u.tired > 105) g.think(u, 'is exhausted', -4, 1);
+    if ((u.wear ?? 100) <= 0) g.think(u, 'has nothing to wear', -5, 1);
+    else if ((u.wear ?? 100) < 25) g.think(u, 'is dressed in tattered rags', -2, 1);
     if (u.wounds.some((w) => w.sev === 2 && !w.treated)) g.think(u, 'is in pain from untreated wounds', -6, 1);
     // little pleasures
     for (const [dx, dy] of DIRS8) {
@@ -415,13 +529,23 @@ function slowTick(g: Game, u: Unit) {
 /** A drafted dwarf with an empty weapon / armor slot goes and grabs the best free piece. */
 function gearUp(g: Game, u: Unit): Job | null {
   const here = g.cellOf(u);
-  for (const slot of ['weapon', 'shield', 'body', 'head', 'legs']) {
+  const wpn = g.items.get(u.equip.weapon);
+  const needs = wpn ? ITEMS[wpn.type].weapon?.ranged?.ammo : undefined;
+  const quiver = g.items.get(u.equip.ammo);
+  if (needs && (!quiver || quiver.n < 10)) {
+    const bolts = g.findItem(u, (i) => i.type === needs);
+    if (bolts) return mkJob('equip', `Picking up ${g.itemName(bolts, true)}`, g.cellOf(bolts), { item: bolts.id });
+  }
+  for (const slot of ['weapon', 'shield', 'body', 'head', 'legs', 'hands', 'feet']) {
     if (u.equip[slot]) continue;
     if (slot === 'weapon' && (u.equip.axe || u.equip.pick) && g.skillLevel(u, 'fight') < 1) continue;
     let best: Item | null = null, bv = -1;
     for (const it of g.items.values()) {
       if (g.slotFor(it) !== slot && !(slot === 'weapon' && ITEMS[it.type].tool === 'axe')) continue;
       if (!g.itemFree(it, u)) continue;
+      // marksdwarves take crossbows (when there are bolts to go with them); everyone else takes something to swing
+      const ranged = !!ITEMS[it.type].weapon?.ranged;
+      if (slot === 'weapon' && ranged !== (g.skillLevel(u, 'shoot') > g.skillLevel(u, 'fight') && g.count((i) => i.type === 'bolt') > 0)) continue;
       const v = g.itemValue(it);
       if (v > bv && g.w.canReach(here, g.cellOf(it), true)) {
         best = it;
@@ -527,6 +651,10 @@ function decide(g: Game, u: Unit) {
     if (isJob(t)) return assign(g, u, t);
   }
   if (busy) return;
+  if ((u.wear ?? 100) < 25 && u.state !== 'melancholy') {
+    const t = tryDress(g, u);
+    if (isJob(t)) return assign(g, u, t);
+  }
   if (u.state === 'melancholy') {
     if (!j) wanderTo(g, u, g.randomNear(here, 8), 200);
     u.whyIdle = 'Melancholy: has lost the will to work or eat.';
@@ -615,9 +743,9 @@ function checkTrap(g: Game, u: Unit) {
   }
 }
 function hostileTick(g: Game, u: Unit) {
-  if (u.kind === 'kobold') return thiefTick(g, u);
+  if (CREATURES[u.kind].thief) return thiefTick(g, u);
   if (u.flee || (u.leaveAt && g.tick > u.leaveAt)) return goHome(g, u);
-  if (u.kind === 'goblin' && !u.flee && u.hp < u.maxHp * 0.4) {
+  if ((u.kind === 'goblin' || u.kind === 'troglodyte') && !u.flee && u.hp < u.maxHp * 0.4) {
     u.flee = true;
     g.say(`${cap(g.unitName(u))} breaks and runs!`, 'good', g.cellOf(u));
   }
@@ -657,7 +785,9 @@ function thiefTick(g: Game, u: Unit) {
       }
       u.stolen = it ? it.id : 0;
       if (!it) {
-        u.flee = true;
+        // nothing worth taking: an animal goes back to being an animal, a kobold slinks off
+        if (u.faction === 'wild') u.stolen = undefined;
+        else u.flee = true;
         return;
       }
     }
@@ -665,7 +795,12 @@ function thiefTick(g: Game, u: Unit) {
     if (r === 'there') {
       const part = g.split(it, 1);
       g.carry(u, part);
-      g.say(`A kobold thief has snatched ${g.itemName(part)}! Stop it before it escapes!`, 'bad', before);
+      if (u.faction === 'wild') {
+        // caught red-handed: now it is fair game for the militia
+        u.faction = 'enemy';
+        u.home = undefined;
+      }
+      g.say(`${cap(g.unitName(u))} has snatched ${g.itemName(part)}! Stop it before it escapes!`, 'bad', before);
     } else if (r === 'blocked') u.flee = true;
   }
   if (!u.dead && g.cellOf(u) !== before) checkTrap(g, u);
@@ -673,6 +808,11 @@ function thiefTick(g: Game, u: Unit) {
 function wildTick(g: Game, u: Unit) {
   const d = CREATURES[u.kind];
   const here = g.cellOf(u);
+  if (d.thief) {
+    // raccoons, keas and macaques: every so often one decides your stockpile looks interesting
+    if (u.stolen === undefined && g.tick >= u.nextThink && g.wealth > 400 && g.rng.chance(0.04)) u.stolen = 0;
+    if (u.stolen !== undefined) return thiefTick(g, u);
+  }
   if (d.water) {
     // lurk in the water and bite anything on the bank
     if ((g.tick + u.id) % 10 === 0) {
@@ -732,19 +872,19 @@ function petTick(g: Game, u: Unit) {
   const here = g.cellOf(u);
   if (g.tick >= u.nextThink) {
     u.nextThink = g.tick + 25 + g.rng.int(10);
-    if (u.kind === 'dog') {
-      const t = nearestHostile(g, u, 8);
+    if (u.kind === 'dog' || u.kind === 'war_dog') {
+      const t = nearestHostile(g, u, u.kind === 'war_dog' ? 14 : 8);
       u.target = t ? t.id : 0;
     }
     if (!u.target && (!u.path || !u.path.length) && g.rng.chance(0.35)) {
       let c = g.meetingSpot();
       const pastures = g.zonesOf('pasture');
-      if (pastures.length && (u.kind === 'yak' || pastures.length)) {
+      if (pastures.length) {
         const z = pastures[u.id % pastures.length];
         c = z.cells[g.rng.int(z.cells.length)];
       }
       if (!g.w.connected(here, c)) c = here;
-      u.path = g.w.findPath(here, g.randomNear(c, u.kind === 'yak' ? 2 : 5), false);
+      u.path = g.w.findPath(here, g.randomNear(c, CREATURES[u.kind].size >= 0.7 ? 2 : 5), false);
     }
   }
   const t = g.units.get(u.target);
@@ -848,9 +988,13 @@ export function explainUnit(g: Game, u: Unit): Explain {
   if (u.lastFail && g.tick - u.lastFailTick < TICKS_DAY / 2) e.lines.push(`Earlier — ${u.lastFail}`);
   if (u.sober > SOBER_SICK) e.lines.push(`⚠ ${days(u.sober)} days without alcohol: withdrawal is killing them. Brew drinks at a Still!`);
   else if (u.sober > SOBER_SLOW) e.lines.push(`⚠ ${days(u.sober)} days without alcohol: working and walking slowly.`);
+  if ((u.wear ?? 100) < 25) {
+    const t = tryDress(g, u);
+    e.lines.push(`${u.wear! <= 0 ? 'Naked' : 'Clothes are in tatters'}: ${isJob(t) ? 'will change into new clothes soon' : t}.`);
+  }
   if (u.hunger > 100) e.lines.push('⚠ Starving.');
   if (u.thirst > 100) e.lines.push('⚠ Dehydrated.');
   return e;
 }
 
-hook({ fallDamage, killUnit, attack });
+hook({ fallDamage, killUnit, attack, engage: chase });

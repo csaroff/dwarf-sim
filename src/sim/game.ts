@@ -12,6 +12,7 @@ import { generate, generateFlat } from './worldgen';
 export const MONTHS = ['Granite', 'Slate', 'Felsite', 'Hematite', 'Malachite', 'Galena', 'Limestone', 'Sandstone', 'Timber', 'Moonstone', 'Opal', 'Obsidian'];
 export const START_YEAR = 250;
 export const MAX_STACK = 20;
+export const MAX_AMMO = 40;
 
 export interface Crop {
   plant: string;
@@ -165,7 +166,7 @@ export class Game {
     return it;
   }
   stackable(it: Item) {
-    return it.type !== 'drink' && it.type !== 'corpse' && it.type !== 'artifact' && !ITEMS[it.type].build && !ITEMS[it.type].weapon && !ITEMS[it.type].armor;
+    return it.type !== 'drink' && it.type !== 'corpse' && it.type !== 'artifact' && !ITEMS[it.type].build && !ITEMS[it.type].weapon && !ITEMS[it.type].armor && !ITEMS[it.type].clothes;
   }
   /** Split `n` off a stack (or return the stack itself when it is all of it). The split-off part stays in the same place. */
   split(it: Item, n: number): Item {
@@ -206,6 +207,12 @@ export class Game {
   }
   equip(u: Unit, it: Item, slot: string) {
     const old = this.items.get(u.equip[slot]);
+    if (old && slot === 'ammo' && old.type === it.type && old.mat === it.mat) {
+      // more of the same bolts go into the same quiver
+      old.n += it.n;
+      this.removeItem(it);
+      return;
+    }
     if (old) {
       old.res = 0;
       this.placeItem(old, this.cellOf(u));
@@ -221,6 +228,7 @@ export class Game {
     if (d.tool === 'pick') return 'pick';
     if (d.tool === 'axe') return 'axe';
     if (d.weapon) return 'weapon';
+    if (d.ammo) return 'ammo';
     if (d.armor) return d.armor.slot;
     return null;
   }
@@ -390,13 +398,14 @@ export class Game {
     const picks = skilled.length ? skilled : [r.pick(SKILLS), r.pick(SKILLS)];
     picks.forEach((s, k) => {
       u.skills[s] = (k === 0 ? 5 : 3) * 100 + r.int(100);
-      if (s !== 'fight') u.labors[s as Labor] = k === 0 ? 1 : 2;
+      if (s !== 'fight' && s !== 'shoot') u.labors[s as Labor] = k === 0 ? 1 : 2;
       else u.militia = true;
     });
     u.hunger = r.int(30);
     u.thirst = r.int(25);
     u.tired = r.int(30);
     u.age = r.range(20, 110);
+    u.wear = r.range(55, 100);
     u.trait = r.pick(['stoic', 'quick to anger', 'cheerful', 'gloomy', 'greedy', 'brave', 'nervous', 'stubborn', 'lazy', 'tireless', 'curious', 'grudge-holding']);
     u.likes = r.pick([...PLANTS.filter((p) => p.drink).map((p) => p.drink!), 'granite', 'iron', 'gold', 'cats', 'yaks', 'plump helmets', 'prepared meals', 'obsidian', 'statues']);
     return u;
@@ -711,7 +720,7 @@ export class Game {
   hostile(a: Unit, b: Unit): boolean {
     if (a.dead || b.dead || a === b) return false;
     if (a.state === 'caged' || b.state === 'caged') return false;
-    if (a.state === 'berserk' || b.state === 'berserk') return true;
+    if (a.state === 'berserk' || b.state === 'berserk' || a.state === 'were' || b.state === 'were') return true;
     const fa = a.faction, fb = b.faction;
     if (fa === fb) return false;
     if (fa === 'enemy' || fb === 'enemy') return true;

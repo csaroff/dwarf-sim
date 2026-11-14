@@ -1,6 +1,6 @@
 // The world acting on the fortress: embark, seasons, migrants, caravans, raids, wildlife,
 // strange moods, the things that live below — and the alert list that tells you what is wrong.
-import { BUILDINGS, CREATURES, CROPS, FIRST_NAMES, H, ITEMS, LABOR_NAME, MAT, MATS, PLANT, PLANTS, RECIPES, T, TICKS_DAY, TICKS_SEASON, W, plantOf } from './defs';
+import { BUILDINGS, CREATURES, CROPS, CreatureDef, creaturesOf, FIRST_NAMES, H, ITEMS, LABOR_NAME, MAT, MATS, PLANT, PLANTS, RECIPES, T, TICKS_DAY, TICKS_SEASON, W, plantOf } from './defs';
 import { Game } from './game';
 import {
   DG_LABOR, DG_NAME, RUN, assign, canWalk, endJob, explainTask, fetch, isJob, needsTending, tryBuild, tryDesig, tryHaul, tryRescue, walk,
@@ -40,7 +40,10 @@ export function embark(g: Game) {
   g.spawnItem('splint', MAT.oak, near(), 2);
   g.spawnItem('pick', MAT.copper, near());
   for (let k = 0; k < 2; k++) g.spawnItem('spear', MAT.copper, near());
-  for (const k of ['dog', 'dog', 'cat', 'yak', 'yak']) {
+  g.spawnItem('crossbow', MAT.oak, near());
+  g.spawnItem('bolt', MAT.oak, near(), 20);
+  g.spawnItem('bolt', MAT.oak, near(), 20);
+  for (const k of ['dog', 'dog', 'cat', 'yak', 'yak', 'chicken', 'chicken', 'sheep']) {
     const p = g.addUnit(k, near(), 'fort');
     p.name = g.rng.pick(FIRST_NAMES);
   }
@@ -56,14 +59,25 @@ export function embark(g: Game) {
 }
 
 // ------------------------------------------------------------------ wildlife
+/** a random creature native to `where`, weighted by how common it is, no more dangerous than allowed */
+function pickCreature(g: Game, where: CreatureDef['where'], maxDanger: number, ok?: (c: CreatureDef) => boolean): CreatureDef {
+  const list = creaturesOf(where).filter((c) => (c.danger || 0) <= maxDanger && (!ok || ok(c)));
+  let total = 0;
+  for (const c of list) total += c.freq ?? 1;
+  let r = g.rng.next() * total;
+  for (const c of list) {
+    r -= c.freq ?? 1;
+    if (r <= 0) return c;
+  }
+  return list[0];
+}
 function spawnWild(g: Game) {
-  // the first weeks are quiet: predators turn up once the fortress has found its feet
+  // the first weeks are quiet: predators and thieving animals turn up once the fortress has found its feet
   const gentle = g.tick < TICKS_DAY * 18;
-  const kinds = gentle ? ['deer', 'deer', 'groundhog', 'groundhog', 'boar'] : ['deer', 'deer', 'groundhog', 'groundhog', 'boar', 'wolf', 'bear', 'elephant', 'deer'];
-  const k = g.rng.pick(kinds);
+  const d = pickCreature(g, 'surface', gentle ? 0 : g.dwarves().length < 12 ? 1 : 2, (c) => !gentle || !c.thief);
   const c = g.randomEdgeCell();
   const inland = g.randomNear(c, 12);
-  const u = g.addUnit(k, inland, 'wild');
+  const u = g.addUnit(d.id, inland, 'wild');
   u.home = inland;
   u.leaveAt = g.tick + TICKS_DAY * (6 + g.rng.int(10));
   return u;
@@ -84,24 +98,35 @@ function spawnCavern(g: Game) {
   const c = cavernCell(g, g.ev.cavern >= 2 && g.rng.chance(0.5) ? CAVERN2_Z : CAVERN1_Z);
   if (c < 0) return;
   // the nastier things only take an interest once the fortress is worth their while
-  const big = g.dwarves().length >= 15;
-  const k = g.rng.pick(big ? ['crundle', 'crundle', 'cave_croc', 'troll', 'spider'] : ['crundle', 'crundle', 'crundle', 'cave_croc']);
-  const n = k === 'crundle' ? 2 : 1;
+  const pop = g.dwarves().length;
+  const d = pickCreature(g, 'cavern', pop >= 25 ? 4 : pop >= 15 ? 3 : pop >= 10 ? 2 : 1, (k) => !k.water);
+  const n = d.size < 0.5 ? 2 + g.rng.int(2) : 1;
   for (let i = 0; i < n; i++) {
-    const d = CREATURES[k];
-    const u = g.addUnit(k, g.randomNear(c, 2), d.hostile ? 'enemy' : 'wild');
+    const u = g.addUnit(d.id, g.randomNear(c, 2), d.hostile ? 'enemy' : 'wild');
     u.home = c;
   }
 }
-function carpCheck(g: Game) {
+/** fire imps and magma crabs crawl out of the magma once it has been found */
+function spawnMagma(g: Game) {
+  for (let t = 0; t < 200; t++) {
+    const x = g.rng.int(W), y = g.rng.int(H), z = 1 + g.rng.int(13);
+    const c = idx(x, y, z);
+    if (!g.w.safe(c) || !g.w.revealed(c) || !g.w.nearMagma(c, 1)) continue;
+    if (g.dwarves().some((d) => dist(g.cellOf(d), c) < 10)) continue;
+    const d = pickCreature(g, 'magma', 9);
+    g.addUnit(d.id, c, 'enemy').home = c;
+    return;
+  }
+}
+function riverCheck(g: Game) {
   let n = 0;
-  for (const u of g.units.values()) if (u.kind === 'carp') n++;
+  for (const u of g.units.values()) if (CREATURES[u.kind].where === 'river') n++;
   if (n >= 4) return;
   for (let t = 0; t < 60; t++) {
     const x = g.rng.int(W), y = g.rng.int(H);
     const c = idx(x, y, g.w.surface[x + y * W]);
     if (g.w.water[c] >= 7) {
-      g.addUnit('carp', c, 'wild');
+      g.addUnit(pickCreature(g, 'river', 9).id, c, 'wild');
       return;
     }
   }
@@ -127,7 +152,13 @@ function migrants(g: Game) {
 function arm(g: Game, u: Unit, tier: number) {
   const mat = tier >= 2 ? MAT.iron : MAT.copper;
   const c = g.cellOf(u);
-  g.equip(u, g.spawnItem(g.rng.pick(['sword', 'spear', 'hammer', 'axe']), mat, c), 'weapon');
+  if (g.ev.raids >= 1 && g.rng.chance(0.25)) {
+    // an archer: stands off and shoots
+    g.equip(u, g.spawnItem('crossbow', MAT.oak, c), 'weapon');
+    g.equip(u, g.spawnItem('bolt', mat, c, 20), 'ammo');
+    return;
+  }
+  g.equip(u, g.spawnItem(g.rng.pick(['sword', 'spear', 'hammer', 'axe', 'mace', 'whip', 'dagger']), mat, c), 'weapon');
   // the first raiding parties are a rabble; later ones come properly equipped
   if (g.rng.chance(0.1 + tier * 0.25)) g.equip(u, g.spawnItem('shield', mat, c), 'shield');
   if (g.rng.chance(0.1 + tier * 0.25)) g.equip(u, g.spawnItem('helm', mat, c), 'head');
@@ -146,7 +177,7 @@ export function raid(g: Game, size?: number) {
     u.leaveAt = g.tick + TICKS_DAY * 5;
     arm(g, u, tier);
   }
-  if (g.ev.raids >= 4 && pop >= 20) for (let k = 0; k < Math.floor(g.ev.raids / 4); k++) g.addUnit('troll', g.randomNear(c, 3), 'enemy').leaveAt = g.tick + TICKS_DAY * 5;
+  if (g.ev.raids >= 4 && pop >= 20) for (let k = 0; k < Math.floor(g.ev.raids / 4); k++) g.addUnit(g.rng.pick(['troll', 'ogre']), g.randomNear(c, 3), 'enemy').leaveAt = g.tick + TICKS_DAY * 5;
   g.ev.raids++;
   g.say(n >= 8 ? `A vile force of darkness has arrived! ${n} goblins lay siege to ${g.fortName.split(',')[0]}.` : `An ambush! ${n} goblins charge from the wilderness. Draft your militia (R) or lock the doors.`, 'death', c, true);
   g.ev.nextRaid = g.tick + TICKS_DAY * (22 + g.rng.int(16));
@@ -197,6 +228,7 @@ function caravanArrive(g: Game) {
   add('cloth', MAT.cloth, 5);
   add('leather', MAT.leather, 3);
   add('barrel', MAT.oak, 3);
+  for (let k = 0; k < 3; k++) add('clothes', MAT.cloth, 1, { q: r.int(3) });
   if (civ !== 'elven') {
     add('pick', MAT.iron, 1);
     add('axe', MAT.iron, 1);
@@ -207,6 +239,10 @@ function caravanArrive(g: Game) {
     add('mail', MAT.iron, 1);
     add('helm', MAT.iron, 1);
     add('shield', MAT.iron, 1);
+    add('crossbow', MAT.oak, 1, { q: 1 });
+    add('bolt', MAT.iron, 20);
+    add('bolt', MAT.iron, 20);
+    add(r.pick(['gauntlets', 'boots', 'breastplate', 'greaves']), MAT.iron, 1);
     add('mechanism', MAT.granite, 2);
   } else {
     add('plant', MAT.none, 10, { sub: 'strawberry' });
@@ -488,11 +524,14 @@ function nature(g: Game) {
   let wild = 0, cav = 0;
   for (const u of g.units.values()) {
     if (u.faction === 'wild' && !CREATURES[u.kind].water && g.outsideAt(u)) wild++;
-    if (CREATURES[u.kind].where === 'cavern') cav++;
+    if (CREATURES[u.kind].where === 'cavern' && !CREATURES[u.kind].water) cav++;
   }
   if (wild < 7 && g.rng.chance(0.5)) spawnWild(g);
   if (g.ev.cavern && cav < 2 + g.ev.cavern * 2 && g.rng.chance(0.03)) spawnCavern(g);
-  carpCheck(g);
+  riverCheck(g);
+  let hot = 0;
+  for (const u of g.units.values()) if (CREATURES[u.kind].where === 'magma') hot++;
+  if (g.ev.magmaSeen && hot < 3 && g.rng.chance(0.03)) spawnMagma(g);
   // wealth
   let v = 0;
   for (const it of g.items.values()) if (!it.held || g.units.get(it.held)?.faction === 'fort') v += g.itemValue(it);

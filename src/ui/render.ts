@@ -34,23 +34,52 @@ const DESIG_TINT = ['', 'rgba(255,190,40,0.30)', 'rgba(255,120,40,0.32)', 'rgba(
 const DESIG_CH = ['', '', '▼', 'X', '▲', '', '', '', '', 'x'];
 const WATER_BG = ['', '#0c2440', '#0d2a4c', '#0e3058', '#0f3664', '#103c70', '#11427c', '#124888'];
 
-// 8×8 sprites. H hat/hair, S skin, E eye, B beard, C clothes, L boots
+// 8×8 sprites. People: H hat/hair, S skin, E eye, B beard, C clothes, L boots.
+// Animals: B body, D darker body, L legs, E eye, N nose, H horn, W white, Y yellow, R red.
 const SPRITES: Record<string, string[]> = {
   dwarf: ['..HHHH..', '.HHHHHH.', '.SESSES.', '.BSSSSB.', '.BBBBBB.', 'CCBBBBCC', '.CCCCCC.', '.LL..LL.'],
   goblin: ['S......S', 'SSHHHHSS', '.SESSES.', '.SSSSSS.', '..SSSS..', 'CCCCCCCC', '.CCCCCC.', '.LL..LL.'],
+  were: ['B......B', 'BB....BB', '.BBBBBB.', '.BEBBEB.', '.BBWWBB.', 'BBBBBBBB', 'B.BBBB.B', '..L..L..'],
+  dog: ['........', '......B.', 'D....BBB', 'DBBBBBEN', '.BBBBBB.', '.BBBBBB.', '.L.L.L.L', '.L....L.'],
+  cat: ['........', 'D....B.B', 'D....BBB', 'D....EBE', '.BBBBBBB', '.BBBBBB.', '.L.LL.L.', '........'],
+  ox: ['........', '.....H.H', '.DDDBBBB', 'BBBBBBEB', 'BBBBBBBN', 'BBBBBBB.', '.LL..LL.', '.LL..LL.'],
+  deer: ['.....H.H', '.....HHH', '......BB', '.BBBBBEB', 'WBBBBBB.', '.BBBBB..', '.L.L.L..', '.L.L.L..'],
+  boar: ['........', '........', '..DDDD..', '.BBBBBB.', 'BBBBBBEB', 'BBBBBBBH', '.L.L.L..', '........'],
+  bear: ['........', '.....B.B', '.BBBBBBB', 'BBBBBBEB', 'BBBBBBBN', 'BBBBBBB.', 'BB.BB.B.', 'LL.LL.L.'],
+  elephant: ['.BBBBBB.', 'BBBBBBBB', 'BBBBBEBB', 'BBBBBBBB', 'BBBBBBHB', 'BBBBBB.B', 'LL.LL..B', 'LL.LL...'],
+  fish: ['........', '........', 'D..BBB..', 'DBBBBBB.', 'DBBBBEBB', 'DBBBBBB.', 'D..BBB..', '........'],
+  spider: ['L.L..L.L', 'L.L..L.L', '.LBBBBL.', 'LLBEEBLL', '..BBBB..', 'LLBBBBLL', 'L.L..L.L', 'L......L'],
+  critter: ['........', '........', '........', '...BB.B.', 'D.BBBBBB', 'DBBBBBEN', '.BBBBBB.', '.L..L...'],
+  bird: ['........', 'BB....BB', 'DBB..BBD', '.DBBBBD.', '..BBEB..', '...BBY..', '...BB...', '........'],
+  fowl: ['........', '...RR...', '...BEY..', '...BB...', '.DBBBB..', 'DBBBBB..', '.BBBB...', '..Y.Y...'],
+  croc: ['........', '........', '........', '......E.', 'D.BBBBBB', 'DBBBBBBW', '.BBBBBB.', '.L..L...'],
+  dragon: ['.H....H.', 'DD.BBBB.', 'DDD.BEBB', 'DBBBBBBW', '.BBBBBB.', 'DBBBBBB.', 'DD.L.L..', 'D..L.L..'],
+  blob: ['........', '..BBBB..', '.BBBBBB.', 'BBEBBEBB', 'BBBBBBBB', 'BBDDDDBB', '.BBBBBB.', 'B.B..B.B'],
+  wagon: ['........', 'WWWWWWW.', 'WWWWWWW.', 'BBBBBBBB', 'BBBBBBBB', '.BBBBBB.', 'LL....LL', 'LL....LL'],
+  horse: ['......D.', '.....BBB', '.....BEN', 'DBBBBBB.', 'DBBBBBB.', '.BBBBBB.', '.L.L..L.', '.L.L..L.'],
+  snake: ['........', '........', '.BE.....', '.BB.....', '..BB..BB', '..BBBBBB', '...BBBB.', '........'],
+  ghost: ['..BBBB..', '.BBBBBB.', '.BEBBEB.', '.BBBBBB.', '.BBBBBB.', '.BBBBBB.', '.B.BB.B.', '........'],
 };
 const BEARDS = ['#b0642a', '#7a4a22', '#d8d0c0', '#3a2a20', '#c89040'];
-/** which sprite and colours a creature is drawn with (null: a lettered token) */
-function spriteOf(u: Unit): { map: string[]; pal: Record<string, string> } | null {
-  switch (u.kind) {
-    case 'dwarf': return { map: SPRITES.dwarf, pal: { H: u.fg, S: '#e8b890', E: '#201810', B: BEARDS[u.id % 5], C: shade(u.fg, 0.5), L: '#3a2c20' } };
-    case 'merchant': return { map: SPRITES.dwarf, pal: { H: '#e0c040', S: '#e8b890', E: '#201810', B: '#7a4a22', C: '#7a5a9a', L: '#3a2c20' } };
-    case 'goblin': return { map: SPRITES.goblin, pal: { H: '#2a2a2a', S: '#60c040', E: '#ff3020', C: '#5a3a2a', L: '#2a2018' } };
-    case 'kobold': return { map: SPRITES.goblin, pal: { H: '#6a4a2a', S: '#e0a060', E: '#201810', C: '#4a4a3a', L: '#2a2018' } };
-    case 'troll': return { map: SPRITES.goblin, pal: { H: '#3a6a6a', S: '#60a0a0', E: '#ffe040', C: '#3a5a5a', L: '#2a4040' } };
-    case 'demon': return { map: SPRITES.goblin, pal: { H: '#801010', S: '#ff3020', E: '#ffe040', C: '#801010', L: '#400808' } };
+const hex6 = (c: string) => (c.length === 4 ? '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3] : c);
+/** which sprite and colours a creature is drawn with: every creature has one */
+function spriteOf(u: Unit): { map: string[]; pal: Record<string, string> } {
+  const d = CREATURES[u.kind];
+  const fg = hex6(u.fg);
+  const dfg = hex6(d.fg);
+  if (d.shape === 'dwarf') {
+    if (u.kind === 'zombie') return { map: SPRITES.dwarf, pal: { H: '#4a5a40', S: '#80a070', E: '#e0e040', B: '#5a6a50', C: '#3a3a30', L: '#2a2a20' } };
+    if (u.kind === 'necromancer') return { map: SPRITES.dwarf, pal: { H: '#3a1a5a', S: '#c8c0d8', E: '#b060ff', B: '#3a1a5a', C: '#2a1040', L: '#1a0a28' } };
+    if (u.kind === 'merchant') return { map: SPRITES.dwarf, pal: { H: '#e0c040', S: '#e8b890', E: '#201810', B: '#7a4a22', C: '#7a5a9a', L: '#3a2c20' } };
+    // what a dwarf wears shows: armor is metal-coloured, no clothes at all is skin
+    const clothes = u.wear ? shade(fg, 0.5) : '#e8b890';
+    return { map: SPRITES.dwarf, pal: { H: u.equip.head ? '#b8bcc8' : fg, S: '#e8b890', E: '#201810', B: BEARDS[u.id % 5], C: u.equip.body ? '#9a9ea8' : clothes, L: u.equip.feet ? '#8a8e98' : '#3a2c20' } };
   }
-  return null;
+  if (d.shape === 'goblin') {
+    const skin = dfg;
+    return { map: SPRITES.goblin, pal: { H: shade(skin, 0.35), S: skin, E: u.kind === 'kobold' ? '#201810' : '#ff3020', C: shade(skin, 0.45), L: shade(skin, 0.3) } };
+  }
+  return { map: SPRITES[d.shape] || SPRITES.critter, pal: { B: dfg, D: shade(dfg, 0.62), L: shade(dfg, 0.45), E: d.shape === 'ghost' ? '#203050' : '#101010', N: '#201810', H: '#f0e8d0', W: '#f0f0f0', Y: '#f0c030', R: '#e03030' } };
 }
 
 export interface Overlay {
@@ -665,31 +694,28 @@ export class Renderer {
     const d = CREATURES[u.kind];
     const lying = u.isDwarf && (u.downSince > 0 || u.job?.type === 'sleep' || u.job?.type === 'rest');
     const sp = spriteOf(u);
-    if (sp) {
-      const px1 = s / 8;
-      const size = Math.ceil(px1);
-      c.fillStyle = 'rgba(0,0,0,0.38)';
-      c.fillRect(px, py, s, s);
-      for (let ry = 0; ry < 8; ry++)
-        for (let rx = 0; rx < 8; rx++) {
-          const col = sp.pal[sp.map[ry][rx]];
-          if (!col) continue;
-          c.fillStyle = col;
-          // lying down: the sprite is turned on its side
-          c.fillRect(px + Math.floor((lying ? ry : rx) * px1), py + Math.floor((lying ? rx : ry) * px1), size, size);
-        }
-    } else {
-      // animals and monsters: a lettered token, ringed by allegiance
-      const ring = u.state === 'caged' ? '#e0e060' : u.faction === 'enemy' ? '#d03a30' : u.faction === 'fort' ? '#5a9a4a' : u.hunted && blink ? '#ff9a30' : '#6a6258';
-      c.fillStyle = 'rgba(16,13,10,0.86)';
-      c.beginPath();
-      c.arc(px + s / 2, py + s / 2, s * 0.47, 0, Math.PI * 2);
-      c.fill();
-      c.strokeStyle = ring;
-      c.lineWidth = Math.max(1, s / 12);
-      c.stroke();
-      c.lineWidth = 1;
-      this.mini(c, d.glyph, u.fg, px, py, 0.74, 0.5, 0.54);
+    const px1 = s / 8;
+    const size = Math.ceil(px1);
+    c.fillStyle = 'rgba(0,0,0,0.38)';
+    c.fillRect(px, py, s, s);
+    const alpha = c.globalAlpha;
+    if (d.shape === 'ghost') c.globalAlpha = alpha * 0.6;
+    for (let ry = 0; ry < 8; ry++)
+      for (let rx = 0; rx < 8; rx++) {
+        const col = sp.pal[sp.map[ry][rx]];
+        if (!col) continue;
+        c.fillStyle = col;
+        // lying down: the sprite is turned on its side
+        c.fillRect(px + Math.floor((lying ? ry : rx) * px1), py + Math.floor((lying ? rx : ry) * px1), size, size);
+      }
+    c.globalAlpha = alpha;
+    if (!u.isDwarf) {
+      // a bar under animals and monsters shows whose side they are on
+      const bar = u.state === 'caged' ? '#e0e060' : u.faction === 'enemy' ? '#e03a30' : u.faction === 'fort' ? '#5ac04a' : u.hunted ? (blink ? '#ff9a30' : '') : d.predator ? '#c08030' : '';
+      if (bar) {
+        c.fillStyle = bar;
+        c.fillRect(px + 1, py + s - Math.max(2, Math.round(s / 9)), s - 2, Math.max(2, Math.round(s / 9)));
+      }
     }
     if (u.isDwarf) {
       if (u.drafted) {

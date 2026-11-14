@@ -10,7 +10,7 @@
 import {
   BUILDINGS, CREATURES, CROPS, F, ITEMS, Ing, LABORS, LABOR_NAME, Labor, MAT, MATS, PLANT, PLANTS, RECIPES, Recipe, T, TICKS_DAY, plantOf, matOf,
 } from './defs';
-import { Game, MAX_STACK } from './game';
+import { Game, MAX_AMMO, MAX_STACK } from './game';
 import type { Bill, Building, Can, Item, Job, Unit, Zone } from './types';
 import { BLOCK_DECK, DIRS8, WH, X, Y, Z, cheb, dist, idx, inMap } from './world';
 
@@ -101,8 +101,11 @@ export function settle(g: Game, cell: number) {
 export let fallDamage: (g: Game, u: Unit, dz: number) => void = () => {};
 export let killUnit: (g: Game, u: Unit, cause: string, by?: Unit) => void = () => {};
 export let attack: (g: Game, a: Unit, b: Unit) => void = () => {};
+/** close with a target and attack it, shooting instead when armed for it; false = cannot get to it */
+export let engage: (g: Game, a: Unit, b: Unit) => boolean = () => false;
 /** life.ts plugs its functions in here (avoids a circular import). */
-export function hook(f: { fallDamage: typeof fallDamage; killUnit: typeof killUnit; attack: typeof attack }) {
+export function hook(f: { fallDamage: typeof fallDamage; killUnit: typeof killUnit; attack: typeof attack; engage: typeof engage }) {
+  engage = f.engage;
   fallDamage = f.fallDamage;
   killUnit = f.killUnit;
   attack = f.attack;
@@ -738,6 +741,20 @@ export function tryHunt(g: Game, u: Unit, prey: Unit): Try {
   if (CREATURES[prey.kind].water) return 'it is in the water where no dwarf can follow';
   if (!g.w.canReach(g.cellOf(u), g.cellOf(prey), true)) return 'no path to it';
   const hunt = mk('hunt', `Hunting ${g.unitName(prey)}`, g.cellOf(prey), { u: prey.id, key: 'u' + prey.id, labor: 'hunt' });
+  const held = g.items.get(u.equip.weapon);
+  if (held && ITEMS[held.type].weapon?.ranged) {
+    // a crossbow hunter tops up on bolts before setting out (and hunts with the stock if there are none)
+    const quiver = g.items.get(u.equip.ammo);
+    if (!quiver || quiver.n < 5) {
+      const bolts = g.findItem(u, (i) => i.type === ITEMS[held.type].weapon!.ranged!.ammo);
+      const eq = bolts ? tryEquip(g, u, bolts) : 'no bolts';
+      if (isJob(eq)) {
+        eq.next = hunt;
+        return eq;
+      }
+    }
+    return hunt;
+  }
   if (u.equip.weapon || u.equip.axe || u.equip.pick) return hunt;
   // nobody wrestles a boar bare-handed: fetch a weapon first (picks are left for the miners)
   const info = {};
@@ -933,6 +950,13 @@ export function tryRest(g: Game, u: Unit): Try {
   return mk('rest', 'Resting on the floor (wounded, no bed)', g.cellOf(u), { b: 0, step: 1 });
 }
 
+export function tryDress(g: Game, u: Unit): Try {
+  const info = {};
+  const it = g.findItem(u, (i) => i.type === 'clothes', info);
+  if (!it) return g.whyNoItem('needs clothes (sew them at a Clothier from cloth, or at the Leather Works)', info);
+  return mk('dress', `Putting on ${g.itemName(it, true)}`, g.cellOf(it), { item: it.id });
+}
+
 // ------------------------------------------------------------------ medicine
 export function tryRescue(g: Game, u: Unit, p: Unit): Try {
   if (p.dead) return 'Too late';
@@ -1006,7 +1030,7 @@ export const RUN: Record<string, Runner> = {
     const r = walk(g, u, g.cellOf(it), true);
     if (r === 'blocked') return blocked;
     if (r === 'going') return 'run';
-    g.equip(u, g.split(it, 1), j.sub || g.slotFor(it)!);
+    g.equip(u, g.split(it, ITEMS[it.type].ammo ? MAX_AMMO : 1), j.sub || g.slotFor(it)!);
     return 'done';
   },
   dig(g, u, j) {
@@ -1196,14 +1220,7 @@ export const RUN: Record<string, Runner> = {
     if (!prey || prey.dead) return 'done';
     if (prey.state === 'caged') return 'it has been caged';
     u.target = prey.id;
-    const pc = g.cellOf(prey);
-    if (cheb(g.cellOf(u), pc) <= 1 && prey.z === u.z) {
-      attack(g, u, prey);
-      return 'run';
-    }
-    const w = walk(g, u, pc, true);
-    if (w === 'blocked') return 'lost the trail (no path)';
-    return 'run';
+    return engage(g, u, prey) ? 'run' : 'lost the trail (no path)';
   },
   slaughter(g, u, j) {
     const a = g.units.get(j.u!);
@@ -1424,6 +1441,16 @@ export const RUN: Record<string, Runner> = {
       g.removeItem(it);
     }
     g.think(p, 'was cared for while bedridden', 2);
+    return 'done';
+  },
+  dress(g, u, j) {
+    const f = fetch(g, u, j, j.item, 1);
+    if (typeof f === 'string') return f;
+    if (++j.t < 30) return 'run';
+    u.wear = 100;
+    if (f.q >= 3) g.think(u, 'put on a truly splendid outfit', 4);
+    else g.think(u, 'put on fresh clothes', 2);
+    g.removeItem(f);
     return 'done';
   },
   idle(g, u, j) {

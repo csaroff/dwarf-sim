@@ -136,8 +136,8 @@ export const CROPS = PLANTS.filter((p) => p.grow);
 // ---------------------------------------------------------------- items
 export type Cat =
   | 'stone' | 'ore' | 'wood' | 'bars' | 'gems' | 'food' | 'drink' | 'seeds' | 'furniture'
-  | 'weapons' | 'armor' | 'tools' | 'goods' | 'cloth' | 'refuse' | 'corpses';
-export const CATS: Cat[] = ['stone', 'ore', 'wood', 'bars', 'gems', 'food', 'drink', 'seeds', 'furniture', 'weapons', 'armor', 'tools', 'goods', 'cloth', 'refuse', 'corpses'];
+  | 'weapons' | 'armor' | 'clothing' | 'tools' | 'goods' | 'cloth' | 'refuse' | 'corpses';
+export const CATS: Cat[] = ['stone', 'ore', 'wood', 'bars', 'gems', 'food', 'drink', 'seeds', 'furniture', 'weapons', 'armor', 'clothing', 'tools', 'goods', 'cloth', 'refuse', 'corpses'];
 
 export interface ItemDef {
   id: string;
@@ -147,9 +147,11 @@ export interface ItemDef {
   fg?: string; // default: material colour
   value: number;
   build?: string; // furniture: building type it installs as
-  weapon?: { dmg: number; verb: string; type: 'edge' | 'blunt' | 'pierce' };
+  weapon?: { dmg: number; verb: string; type: 'edge' | 'blunt' | 'pierce'; ranged?: { range: number; ammo: string } };
+  ammo?: boolean; // bolts: carried in the ammo slot
   tool?: 'pick' | 'axe';
-  armor?: { slot: 'head' | 'body' | 'legs' | 'shield'; prot: number };
+  armor?: { slot: 'head' | 'body' | 'legs' | 'hands' | 'feet' | 'shield'; prot: number };
+  clothes?: boolean;
   rots?: boolean;
 }
 const I = (d: ItemDef) => d;
@@ -185,6 +187,16 @@ export const ITEMS: Record<string, ItemDef> = {
   sword: I({ id: 'sword', name: 'short sword', cat: 'weapons', glyph: '/', value: 30, weapon: { dmg: 11, verb: 'slashes', type: 'edge' } }),
   spear: I({ id: 'spear', name: 'spear', cat: 'weapons', glyph: '/', value: 25, weapon: { dmg: 10, verb: 'stabs', type: 'pierce' } }),
   hammer: I({ id: 'hammer', name: 'war hammer', cat: 'weapons', glyph: '/', value: 30, weapon: { dmg: 10, verb: 'bashes', type: 'blunt' } }),
+  mace: I({ id: 'mace', name: 'mace', cat: 'weapons', glyph: '/', value: 30, weapon: { dmg: 11, verb: 'bludgeons', type: 'blunt' } }),
+  dagger: I({ id: 'dagger', name: 'dagger', cat: 'weapons', glyph: '/', value: 15, weapon: { dmg: 7, verb: 'stabs', type: 'pierce' } }),
+  pike: I({ id: 'pike', name: 'pike', cat: 'weapons', glyph: '/', value: 35, weapon: { dmg: 13, verb: 'impales', type: 'pierce' } }),
+  whip: I({ id: 'whip', name: 'whip', cat: 'weapons', glyph: '~', value: 25, weapon: { dmg: 9, verb: 'lashes', type: 'edge' } }),
+  crossbow: I({ id: 'crossbow', name: 'crossbow', cat: 'weapons', glyph: '}', value: 30, weapon: { dmg: 10, verb: 'shoots', type: 'pierce', ranged: { range: 9, ammo: 'bolt' } } }),
+  bolt: I({ id: 'bolt', name: 'bolts', cat: 'weapons', glyph: '↑', value: 1, ammo: true }),
+  gauntlets: I({ id: 'gauntlets', name: 'gauntlets', cat: 'armor', glyph: '[', value: 20, armor: { slot: 'hands', prot: 3 } }),
+  boots: I({ id: 'boots', name: 'boots', cat: 'armor', glyph: '[', value: 20, armor: { slot: 'feet', prot: 3 } }),
+  breastplate: I({ id: 'breastplate', name: 'breastplate', cat: 'armor', glyph: '[', value: 60, armor: { slot: 'body', prot: 7 } }),
+  clothes: I({ id: 'clothes', name: 'outfit', cat: 'clothing', glyph: '⌂', value: 8, clothes: true }),
   shield: I({ id: 'shield', name: 'shield', cat: 'armor', glyph: '[', value: 20, armor: { slot: 'shield', prot: 3 } }),
   helm: I({ id: 'helm', name: 'helm', cat: 'armor', glyph: '[', value: 20, armor: { slot: 'head', prot: 4 } }),
   mail: I({ id: 'mail', name: 'mail shirt', cat: 'armor', glyph: '[', value: 40, armor: { slot: 'body', prot: 5 } }),
@@ -228,14 +240,15 @@ export const LABOR_HELP: Record<Labor, string> = {
   fish: 'Fish at fishing zones',
   haul: 'Carry things to stockpiles, pull levers, bury the dead',
 };
-export const SKILLS = [...LABORS.filter((l) => l !== 'haul'), 'fight'] as string[];
+export const SKILLS = [...LABORS.filter((l) => l !== 'haul'), 'fight', 'shoot'] as string[];
 export const SKILL_LEVELS = ['Dabbling', 'Novice', 'Adequate', 'Competent', 'Skilled', 'Proficient', 'Talented', 'Adept', 'Expert', 'Professional', 'Accomplished', 'Great', 'Master', 'High Master', 'Grand Master', 'Legendary'];
 export const PROFESSION: Record<string, string> = {
   doctor: 'Doctor', mine: 'Miner', chop: 'Woodcutter', build: 'Architect', farm: 'Farmer', brew: 'Brewer', cook: 'Cook',
-  mason: 'Mason', carpenter: 'Carpenter', smith: 'Metalsmith', craft: 'Craftsdwarf', hunt: 'Hunter', fish: 'Fisherdwarf', fight: 'Axedwarf',
+  mason: 'Mason', carpenter: 'Carpenter', smith: 'Metalsmith', craft: 'Craftsdwarf', hunt: 'Hunter', fish: 'Fisherdwarf', fight: 'Axedwarf', shoot: 'Marksdwarf',
 };
 
 // ---------------------------------------------------------------- creatures
+export type Shape = 'dwarf' | 'goblin' | 'were' | 'dog' | 'cat' | 'ox' | 'deer' | 'boar' | 'bear' | 'elephant' | 'fish' | 'spider' | 'critter' | 'bird' | 'fowl' | 'croc' | 'dragon' | 'blob' | 'wagon' | 'horse' | 'snake' | 'ghost';
 export interface CreatureDef {
   id: string;
   name: string;
@@ -247,40 +260,126 @@ export interface CreatureDef {
   verb: string;
   dtype: 'edge' | 'blunt' | 'pierce';
   skill: number;
+  shape: Shape; // which sprite it is drawn with
   hostile?: boolean; // attacks fort units on sight
   predator?: boolean; // wild, but attacks when close
   meat?: number;
   water?: boolean; // lives in water
   tame?: boolean;
-  where?: 'surface' | 'cavern' | 'river';
+  where?: 'surface' | 'cavern' | 'river' | 'magma' | 'mega' | 'livestock';
+  freq?: number; // how common among others found in the same place (default 1)
+  danger?: number; // 0 harmless .. 3 terrifying: gates when it may appear
   armor?: number;
   flies?: boolean;
+  thief?: boolean; // snatches an item and runs
+  undead?: boolean; // feels no pain, never flees or bleeds out
+  ranged?: { dmg: number; range: number; verb: string; type: 'pierce' | 'burn' };
+  eggs?: boolean;
+  milk?: boolean;
+  wool?: boolean;
 }
-export const CREATURES: Record<string, CreatureDef> = {
-  dwarf: { id: 'dwarf', name: 'dwarf', glyph: '☺', fg: '#fff', size: 1, speed: 6, dmg: 5, verb: 'punches', dtype: 'blunt', skill: 0 },
-  dog: { id: 'dog', name: 'dog', glyph: 'd', fg: '#c09050', size: 0.6, speed: 4, dmg: 5, verb: 'bites', dtype: 'edge', skill: 3, tame: true, meat: 3 },
-  cat: { id: 'cat', name: 'cat', glyph: 'c', fg: '#e0e0e0', size: 0.2, speed: 4, dmg: 1, verb: 'scratches', dtype: 'edge', skill: 2, tame: true, meat: 1 },
-  yak: { id: 'yak', name: 'yak', glyph: 'Y', fg: '#a08060', size: 2.5, speed: 8, dmg: 4, verb: 'kicks', dtype: 'blunt', skill: 1, tame: true, meat: 10 },
-  deer: { id: 'deer', name: 'deer', glyph: 'D', fg: '#c09050', size: 1.2, speed: 4, dmg: 3, verb: 'kicks', dtype: 'blunt', skill: 1, meat: 6, where: 'surface' },
-  groundhog: { id: 'groundhog', name: 'groundhog', glyph: 'g', fg: '#b08050', size: 0.2, speed: 6, dmg: 1, verb: 'bites', dtype: 'edge', skill: 0, meat: 1, where: 'surface' },
-  boar: { id: 'boar', name: 'wild boar', glyph: 'B', fg: '#806040', size: 1.1, speed: 5, dmg: 5, verb: 'gores', dtype: 'pierce', skill: 2, meat: 6, where: 'surface' },
-  wolf: { id: 'wolf', name: 'wolf', glyph: 'w', fg: '#a0a0a0', size: 0.8, speed: 4, dmg: 6, verb: 'bites', dtype: 'edge', skill: 3, predator: true, meat: 3, where: 'surface' },
-  bear: { id: 'bear', name: 'grizzly bear', glyph: 'G', fg: '#906030', size: 2.2, speed: 5, dmg: 9, verb: 'mauls', dtype: 'edge', skill: 4, predator: true, meat: 9, where: 'surface' },
-  elephant: { id: 'elephant', name: 'elephant', glyph: 'E', fg: '#b0b0b0', size: 6, speed: 6, dmg: 14, verb: 'tramples', dtype: 'blunt', skill: 3, meat: 30, where: 'surface' },
-  carp: { id: 'carp', name: 'carp', glyph: 'α', fg: '#ffa040', size: 0.5, speed: 4, dmg: 7, verb: 'bites', dtype: 'edge', skill: 6, predator: true, water: true, meat: 2, where: 'river' },
-  goblin: { id: 'goblin', name: 'goblin', glyph: 'g', fg: '#60e040', size: 0.9, speed: 6, dmg: 5, verb: 'strikes', dtype: 'blunt', skill: 3, hostile: true },
-  kobold: { id: 'kobold', name: 'kobold thief', glyph: 'k', fg: '#e0a060', size: 0.4, speed: 4, dmg: 2, verb: 'stabs', dtype: 'pierce', skill: 1, hostile: true },
-  troll: { id: 'troll', name: 'troll', glyph: 'T', fg: '#60a0a0', size: 4, speed: 7, dmg: 13, verb: 'smashes', dtype: 'blunt', skill: 3, hostile: true, where: 'cavern' },
-  crundle: { id: 'crundle', name: 'crundle', glyph: 'c', fg: '#e06060', size: 0.3, speed: 5, dmg: 3, verb: 'kicks', dtype: 'blunt', skill: 1, hostile: true, meat: 1, where: 'cavern' },
-  cave_croc: { id: 'cave_croc', name: 'cave crocodile', glyph: 'C', fg: '#60a060', size: 2.5, speed: 7, dmg: 11, verb: 'bites', dtype: 'edge', skill: 3, predator: true, meat: 10, where: 'cavern' },
-  spider: { id: 'spider', name: 'giant cave spider', glyph: 'S', fg: '#c050c0', size: 3, speed: 4, dmg: 13, verb: 'bites', dtype: 'pierce', skill: 6, hostile: true, where: 'cavern', meat: 4 },
-  beast: { id: 'beast', name: 'forgotten beast', glyph: 'Ω', fg: '#ff40ff', size: 10, speed: 6, dmg: 20, verb: 'rends', dtype: 'edge', skill: 8, hostile: true, armor: 3 },
-  demon: { id: 'demon', name: 'demon', glyph: '&', fg: '#ff3020', size: 8, speed: 3, dmg: 24, verb: 'tears at', dtype: 'edge', skill: 10, hostile: true, armor: 4, flies: true },
-  merchant: { id: 'merchant', name: 'merchant', glyph: '☺', fg: '#e0c040', size: 1, speed: 6, dmg: 4, verb: 'punches', dtype: 'blunt', skill: 2 },
-  wagon: { id: 'wagon', name: 'wagon', glyph: 'W', fg: '#c09050', size: 5, speed: 8, dmg: 0, verb: 'bumps', dtype: 'blunt', skill: 0 },
-};
+type CX = Partial<CreatureDef>;
+const cr = (id: string, name: string, glyph: string, fg: string, shape: Shape, size: number, speed: number, dmg: number, verb: string, dtype: CreatureDef['dtype'], skill: number, x: CX = {}): CreatureDef =>
+  ({ id, name, glyph, fg, shape, size, speed, dmg, verb, dtype, skill, ...x });
+const CLIST: CreatureDef[] = [
+  cr('dwarf', 'dwarf', '☺', '#fff', 'dwarf', 1, 6, 5, 'punches', 'blunt', 0),
+  cr('merchant', 'merchant', '☺', '#e0c040', 'dwarf', 1, 6, 4, 'punches', 'blunt', 2),
+  cr('wagon', 'wagon', 'W', '#c09050', 'wagon', 5, 8, 0, 'bumps', 'blunt', 0),
+  // ---- livestock and pets
+  cr('dog', 'dog', 'd', '#c09050', 'dog', 0.6, 4, 5, 'bites', 'edge', 3, { tame: true, meat: 3, where: 'livestock' }),
+  cr('war_dog', 'war dog', 'd', '#e06040', 'dog', 0.9, 4, 9, 'bites', 'edge', 6, { tame: true, meat: 3, armor: 1 }),
+  cr('cat', 'cat', 'c', '#e0e0e0', 'cat', 0.2, 4, 1, 'scratches', 'edge', 2, { tame: true, meat: 1, where: 'livestock' }),
+  cr('yak', 'yak', 'Y', '#a08060', 'ox', 2.5, 8, 4, 'kicks', 'blunt', 1, { tame: true, meat: 10, where: 'livestock', milk: true, wool: true }),
+  cr('cow', 'cow', 'C', '#e8e0d0', 'ox', 2.5, 8, 4, 'kicks', 'blunt', 1, { tame: true, meat: 12, where: 'livestock', milk: true }),
+  cr('horse', 'horse', 'H', '#b08050', 'horse', 2.5, 3, 6, 'kicks', 'blunt', 2, { tame: true, meat: 10, where: 'livestock' }),
+  cr('donkey', 'donkey', 'D', '#a0a0a0', 'horse', 1.8, 5, 5, 'kicks', 'blunt', 1, { tame: true, meat: 7, where: 'livestock' }),
+  cr('sheep', 'sheep', 's', '#f0f0e8', 'boar', 0.8, 7, 2, 'butts', 'blunt', 0, { tame: true, meat: 5, where: 'livestock', wool: true, milk: true }),
+  cr('goat', 'goat', 'g', '#d0c8b0', 'deer', 0.7, 6, 3, 'butts', 'blunt', 1, { tame: true, meat: 4, where: 'livestock', milk: true }),
+  cr('pig', 'pig', 'p', '#f0a8a8', 'boar', 0.9, 7, 3, 'bites', 'edge', 0, { tame: true, meat: 7, where: 'livestock' }),
+  cr('llama', 'llama', 'L', '#e8d8b8', 'horse', 1.5, 6, 3, 'spits at', 'blunt', 1, { tame: true, meat: 7, where: 'livestock', wool: true, milk: true }),
+  cr('alpaca', 'alpaca', 'a', '#f0e8d8', 'horse', 1.0, 6, 2, 'kicks', 'blunt', 0, { tame: true, meat: 5, where: 'livestock', wool: true }),
+  cr('chicken', 'chicken', 'h', '#f0e8c8', 'fowl', 0.08, 6, 1, 'pecks', 'pierce', 0, { tame: true, meat: 1, where: 'livestock', eggs: true }),
+  cr('turkey', 'turkey', 't', '#a07050', 'fowl', 0.15, 6, 1, 'pecks', 'pierce', 0, { tame: true, meat: 2, where: 'livestock', eggs: true }),
+  cr('duck', 'duck', 'u', '#60a060', 'fowl', 0.08, 6, 1, 'pecks', 'pierce', 0, { tame: true, meat: 1, where: 'livestock', eggs: true }),
+  // ---- surface wildlife
+  cr('deer', 'deer', 'D', '#c09050', 'deer', 1.2, 4, 3, 'kicks', 'blunt', 1, { meat: 6, where: 'surface', freq: 3 }),
+  cr('elk', 'elk', 'E', '#a07848', 'deer', 2.2, 4, 5, 'gores', 'pierce', 2, { meat: 10, where: 'surface' }),
+  cr('moose', 'moose', 'M', '#7a5a3a', 'deer', 3.2, 5, 8, 'tramples', 'blunt', 3, { meat: 14, where: 'surface', freq: 0.5 }),
+  cr('groundhog', 'groundhog', 'g', '#b08050', 'critter', 0.2, 6, 1, 'bites', 'edge', 0, { meat: 1, where: 'surface', freq: 2 }),
+  cr('rabbit', 'rabbit', 'r', '#d8c8b0', 'critter', 0.1, 3, 1, 'bites', 'edge', 0, { meat: 1, where: 'surface', freq: 2 }),
+  cr('fox', 'fox', 'f', '#e07030', 'dog', 0.3, 4, 2, 'bites', 'edge', 1, { meat: 1, where: 'surface' }),
+  cr('raccoon', 'raccoon', 'r', '#909090', 'critter', 0.25, 5, 2, 'bites', 'edge', 1, { meat: 1, where: 'surface', thief: true, freq: 0.6 }),
+  cr('macaque', 'rhesus macaque', 'm', '#c0a070', 'critter', 0.25, 4, 2, 'bites', 'edge', 1, { meat: 1, where: 'surface', thief: true, freq: 0.6 }),
+  cr('kea', 'kea', 'k', '#70b050', 'bird', 0.05, 3, 1, 'pecks', 'pierce', 1, { where: 'surface', thief: true, flies: true, freq: 0.6 }),
+  cr('boar', 'wild boar', 'B', '#806040', 'boar', 1.1, 5, 5, 'gores', 'pierce', 2, { meat: 6, where: 'surface', freq: 1.5 }),
+  cr('badger', 'badger', 'b', '#b0b0b0', 'critter', 0.3, 5, 4, 'claws', 'edge', 3, { meat: 1, where: 'surface', predator: true, danger: 1, freq: 0.7 }),
+  cr('wolf', 'wolf', 'w', '#a0a0a0', 'dog', 0.8, 4, 6, 'bites', 'edge', 3, { predator: true, meat: 3, where: 'surface', danger: 1 }),
+  cr('cougar', 'cougar', 'c', '#d0a060', 'cat', 1.0, 3, 7, 'claws', 'edge', 4, { predator: true, meat: 4, where: 'surface', danger: 1, freq: 0.6 }),
+  cr('black_bear', 'black bear', 'B', '#404040', 'bear', 1.6, 5, 7, 'mauls', 'edge', 3, { predator: true, meat: 7, where: 'surface', danger: 1, freq: 0.7 }),
+  cr('bear', 'grizzly bear', 'G', '#906030', 'bear', 2.2, 5, 9, 'mauls', 'edge', 4, { predator: true, meat: 9, where: 'surface', danger: 2, freq: 0.7 }),
+  cr('elephant', 'elephant', 'E', '#b0b0b0', 'elephant', 6, 6, 14, 'tramples', 'blunt', 3, { meat: 30, where: 'surface', freq: 0.4 }),
+  cr('giant_eagle', 'giant eagle', 'E', '#e0d0a0', 'bird', 1.5, 3, 9, 'claws', 'edge', 5, { predator: true, flies: true, meat: 4, where: 'surface', danger: 2, freq: 0.3 }),
+  cr('unicorn', 'unicorn', 'U', '#ffffff', 'horse', 2.5, 3, 12, 'gores', 'pierce', 5, { meat: 10, where: 'surface', freq: 0.15 }),
+  cr('carp', 'carp', 'α', '#ffa040', 'fish', 0.5, 4, 7, 'bites', 'edge', 6, { predator: true, water: true, meat: 2, where: 'river' }),
+  cr('pike', 'longnose gar', 'α', '#80a080', 'fish', 0.7, 4, 8, 'bites', 'edge', 5, { predator: true, water: true, meat: 3, where: 'river', freq: 0.5 }),
+  cr('alligator', 'alligator', 'A', '#508050', 'croc', 2.2, 6, 11, 'bites', 'edge', 4, { predator: true, water: true, meat: 9, where: 'river', freq: 0.3 }),
+  // ---- invaders
+  cr('goblin', 'goblin', 'g', '#60e040', 'goblin', 0.9, 6, 5, 'strikes', 'blunt', 3, { hostile: true }),
+  cr('kobold', 'kobold thief', 'k', '#e0a060', 'goblin', 0.4, 4, 2, 'stabs', 'pierce', 1, { hostile: true, thief: true }),
+  cr('troll', 'troll', 'T', '#60a0a0', 'goblin', 4, 7, 13, 'smashes', 'blunt', 3, { hostile: true, where: 'cavern', danger: 3, freq: 0.4 }),
+  cr('ogre', 'ogre', 'O', '#c0a060', 'goblin', 5, 7, 15, 'clubs', 'blunt', 3, { hostile: true }),
+  // ---- cavern life
+  cr('crundle', 'crundle', 'c', '#e06060', 'critter', 0.3, 5, 3, 'kicks', 'blunt', 1, { hostile: true, meat: 1, where: 'cavern', freq: 3, danger: 1 }),
+  cr('giant_rat', 'giant rat', 'r', '#907060', 'critter', 0.4, 4, 3, 'bites', 'edge', 1, { meat: 1, where: 'cavern', freq: 2 }),
+  cr('giant_bat', 'giant bat', 'b', '#806080', 'bird', 0.8, 3, 5, 'bites', 'edge', 3, { predator: true, flies: true, meat: 2, where: 'cavern', danger: 1 }),
+  cr('bugbat', 'bugbat', 'b', '#a0c040', 'bird', 0.2, 3, 2, 'bites', 'edge', 1, { hostile: true, flies: true, where: 'cavern', danger: 1 }),
+  cr('cave_floater', 'cave floater', 'f', '#c0e0e0', 'blob', 0.2, 8, 1, 'bumps', 'blunt', 0, { flies: true, where: 'cavern' }),
+  cr('gorlak', 'gorlak', 'g', '#e0c080', 'blob', 0.6, 6, 2, 'bites', 'edge', 0, { where: 'cavern', meat: 2 }),
+  cr('creeping_eye', 'creeping eye', 'e', '#e0e0ff', 'blob', 0.5, 8, 2, 'bumps', 'blunt', 0, { where: 'cavern', freq: 0.5 }),
+  cr('elk_bird', 'elk bird', 'E', '#b0a080', 'fowl', 1.4, 5, 3, 'kicks', 'blunt', 1, { meat: 7, where: 'cavern', eggs: true }),
+  cr('draltha', 'draltha', 'D', '#c0a0a0', 'ox', 3.5, 7, 8, 'tramples', 'blunt', 2, { meat: 16, where: 'cavern', freq: 0.7 }),
+  cr('giant_earthworm', 'giant earthworm', 'w', '#e0a0a0', 'snake', 1.5, 9, 2, 'bites', 'edge', 0, { meat: 8, where: 'cavern' }),
+  cr('plump_helmet_man', 'plump helmet man', 'p', '#c060e0', 'goblin', 0.5, 6, 3, 'punches', 'blunt', 1, { hostile: true, where: 'cavern', danger: 1, meat: 2 }),
+  cr('troglodyte', 'troglodyte', 't', '#a09070', 'goblin', 0.8, 6, 5, 'bites', 'edge', 2, { hostile: true, where: 'cavern', danger: 1 }),
+  cr('molemarian', 'molemarian', 'm', '#b08080', 'goblin', 0.9, 6, 6, 'claws', 'edge', 2, { hostile: true, where: 'cavern', danger: 2, freq: 0.7 }),
+  cr('reacher', 'reacher', 'r', '#d0d0a0', 'goblin', 1.1, 5, 6, 'grabs', 'blunt', 3, { hostile: true, where: 'cavern', danger: 2, freq: 0.7 }),
+  cr('helmet_snake', 'helmet snake', 's', '#60c080', 'snake', 0.5, 5, 6, 'bites', 'pierce', 3, { predator: true, where: 'cavern', danger: 1, meat: 2 }),
+  cr('cave_toad', 'giant cave toad', 'T', '#70a050', 'blob', 1.8, 6, 7, 'bites', 'blunt', 2, { predator: true, where: 'cavern', danger: 2, meat: 6, freq: 0.7 }),
+  cr('cave_croc', 'cave crocodile', 'C', '#60a060', 'croc', 2.5, 7, 11, 'bites', 'edge', 3, { predator: true, meat: 10, where: 'cavern', danger: 2 }),
+  cr('cave_bear', 'blind cave bear', 'B', '#d0c0b0', 'bear', 2.4, 5, 10, 'mauls', 'edge', 4, { predator: true, meat: 9, where: 'cavern', danger: 2, freq: 0.6 }),
+  cr('spider', 'giant cave spider', 'S', '#c050c0', 'spider', 3, 4, 13, 'bites', 'pierce', 6, { hostile: true, where: 'cavern', meat: 4, danger: 3, freq: 0.4 }),
+  cr('rutherer', 'rutherer', 'R', '#c08040', 'bear', 3, 5, 12, 'gores', 'pierce', 4, { hostile: true, where: 'cavern', danger: 3, freq: 0.4, meat: 9 }),
+  cr('jabberer', 'jabberer', 'J', '#e0b040', 'fowl', 4, 4, 12, 'pecks', 'pierce', 4, { predator: true, where: 'cavern', danger: 3, freq: 0.4, meat: 14, eggs: true }),
+  cr('crawler', 'voracious cave crawler', 'C', '#b06060', 'snake', 2.5, 5, 11, 'bites', 'edge', 4, { hostile: true, where: 'cavern', danger: 3, freq: 0.4 }),
+  cr('cave_ogre', 'blind cave ogre', 'O', '#d0d0c0', 'goblin', 5, 6, 16, 'smashes', 'blunt', 4, { hostile: true, where: 'cavern', danger: 3, freq: 0.3 }),
+  cr('cave_dragon', 'cave dragon', 'D', '#80a0c0', 'dragon', 8, 5, 18, 'bites', 'edge', 6, { hostile: true, where: 'cavern', danger: 4, freq: 0.1, armor: 2, meat: 30 }),
+  cr('olm', 'giant olm', 'o', '#f0d0d0', 'fish', 0.8, 5, 5, 'bites', 'edge', 2, { predator: true, water: true, where: 'cavern', meat: 3 }),
+  // ---- things that live in the heat
+  cr('fire_imp', 'fire imp', 'i', '#ff8020', 'goblin', 0.4, 4, 4, 'claws', 'edge', 3, { hostile: true, where: 'magma', ranged: { dmg: 10, range: 6, verb: 'hurls a fireball at', type: 'burn' } }),
+  cr('magma_crab', 'magma crab', 'c', '#ff5030', 'spider', 0.8, 6, 6, 'pinches', 'edge', 3, { hostile: true, where: 'magma', armor: 2, ranged: { dmg: 9, range: 5, verb: 'spits molten rock at', type: 'burn' } }),
+  // ---- megabeasts
+  cr('dragon', 'dragon', 'D', '#ff4020', 'dragon', 13, 5, 26, 'bites', 'edge', 9, { hostile: true, where: 'mega', armor: 4, meat: 60, ranged: { dmg: 22, range: 7, verb: 'breathes fire on', type: 'burn' } }),
+  cr('hydra', 'hydra', 'H', '#40c060', 'dragon', 12, 6, 20, 'bites', 'edge', 8, { hostile: true, where: 'mega', armor: 2, meat: 50 }),
+  cr('colossus', 'bronze colossus', 'C', '#d8a040', 'goblin', 14, 8, 28, 'crushes', 'blunt', 8, { hostile: true, where: 'mega', armor: 7 }),
+  cr('roc', 'roc', 'R', '#e0c080', 'bird', 11, 3, 20, 'claws', 'edge', 7, { hostile: true, where: 'mega', flies: true, armor: 1, meat: 40 }),
+  cr('giant', 'giant', 'G', '#e0b090', 'goblin', 9, 6, 20, 'stomps', 'blunt', 6, { hostile: true, where: 'mega', armor: 1 }),
+  cr('cyclops', 'cyclops', 'C', '#c0a080', 'goblin', 8, 6, 18, 'clubs', 'blunt', 6, { hostile: true, where: 'mega', armor: 1 }),
+  cr('ettin', 'ettin', 'E', '#b0a0a0', 'goblin', 8, 6, 17, 'clubs', 'blunt', 6, { hostile: true, where: 'mega', armor: 1 }),
+  cr('minotaur', 'minotaur', 'M', '#a06040', 'were', 5, 5, 16, 'gores', 'pierce', 9, { hostile: true, where: 'mega', armor: 1 }),
+  cr('beast', 'forgotten beast', 'Ω', '#ff40ff', 'blob', 10, 6, 20, 'rends', 'edge', 8, { hostile: true, armor: 3 }),
+  cr('demon', 'demon', '&', '#ff3020', 'were', 8, 3, 24, 'tears at', 'edge', 10, { hostile: true, armor: 4, flies: true, ranged: { dmg: 14, range: 6, verb: 'hurls hellfire at', type: 'burn' } }),
+  // ---- the night
+  cr('werebeast', 'werebeast', 'W', '#c0a060', 'were', 3, 3, 13, 'bites', 'edge', 7, { hostile: true, armor: 1 }),
+  cr('necromancer', 'necromancer', 'N', '#b060ff', 'dwarf', 1, 6, 4, 'strikes', 'blunt', 2, { hostile: true }),
+  cr('zombie', 'zombie', 'Z', '#80a070', 'dwarf', 1.3, 10, 7, 'claws', 'blunt', 2, { hostile: true, undead: true, armor: 1 }),
+  cr('ghost', 'ghost', '☻', '#a0d0ff', 'ghost', 1, 7, 0, 'chills', 'blunt', 0, { flies: true }),
+];
+export const CREATURES: Record<string, CreatureDef> = {};
+for (const c of CLIST) CREATURES[c.id] = c;
+export const creaturesOf = (where: CreatureDef['where']) => CLIST.filter((c) => c.where === where);
 
 export const PARTS = ['head', 'upper body', 'lower body', 'right arm', 'left arm', 'right leg', 'left leg'];
+export const WERE_KINDS = ['wolf', 'bear', 'gecko', 'lizard', 'elk', 'warthog', 'tapir', 'skink', 'camel', 'jackal', 'mongoose', 'badger', 'hyena', 'panther', 'ram', 'buzzard'];
 export const PART_W = [1, 4, 3, 2, 2, 2, 2]; // hit chance weights
 
 // ---------------------------------------------------------------- buildings
@@ -337,6 +436,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   tannery: B({ id: 'tannery', name: 'Tannery', w: 3, h: 3, glyphs: '≈ § ☼ § ≈', fg: '#b07040', needs: [anyBuildMat], work: 150, menu: 'production', shop: true, desc: 'Tans raw hides into leather.' }),
   leatherworks: B({ id: 'leatherworks', name: 'Leather Works', w: 3, h: 3, glyphs: '§ [ ☼ [ §', fg: '#b07040', needs: [anyBuildMat], work: 150, menu: 'production', shop: true, desc: 'Leather armor.' }),
   loom: B({ id: 'loom', name: 'Loom', w: 3, h: 3, glyphs: '║║║ ☼ §§§', fg: '#e0d8c0', needs: [anyBuildMat], work: 150, menu: 'production', shop: true, desc: 'Weaves pig tails into cloth (for bandages and trade).' }),
+  clothier: B({ id: 'clothier', name: "Clothier's Shop", w: 3, h: 3, glyphs: '§ ⌂ ☼ ⌂ §', fg: '#c0a0e0', needs: [anyBuildMat], work: 150, menu: 'production', shop: true, desc: 'Sews clothes from cloth or leather. Clothes wear out, and nobody likes being naked.' }),
   jeweler: B({ id: 'jeweler', name: "Jeweler's Workshop", w: 3, h: 3, glyphs: '☼ ♦ ☼ ♦ ☼', fg: '#60e0e0', needs: [anyBuildMat], work: 150, menu: 'production', shop: true, desc: 'Cuts rough gems.' }),
   furnace: B({ id: 'furnace', name: 'Wood Furnace', w: 3, h: 3, glyphs: '▬╔╗ ☼║*╚╝', fg: '#e08040', needs: [{ type: ['boulder', 'block'], n: 1 }], work: 150, menu: 'production', shop: true, desc: 'Burns logs into charcoal (fuel).' }),
   smelter: B({ id: 'smelter', name: 'Smelter', w: 3, h: 3, glyphs: '*╔╗ ☼║≡╚╝', fg: '#e06030', needs: [{ type: ['boulder', 'block'], n: 1 }], work: 150, menu: 'production', shop: true, desc: 'Smelts ore into metal bars. Needs fuel.' }),
@@ -380,6 +480,9 @@ wood('splint', 'Make splint', 2, 120);
 wood('crutch', 'Make crutch', 1, 120);
 wood('shield', 'Make wooden shield');
 wood('cage', 'Make wooden cage');
+wood('crossbow', 'Make wooden crossbow', 1, 260);
+R.push({ id: 'c_bolt', name: 'Make wooden bolts', shop: ['carpenter', 'craftsdwarf'], labor: 'carpenter', work: 160, in: [{ type: 'log', n: 1 }], out: [{ type: 'bolt', n: 15 }] });
+R.push({ id: 'bone_bolt', name: 'Make bone bolts', shop: ['craftsdwarf'], labor: 'craft', work: 160, in: [{ type: 'bone', n: 1 }], out: [{ type: 'bolt', n: 10, mat: 'bone' }] });
 const stone = (id: string, name: string, n = 1, work = 240) =>
   R.push({ id: 'm_' + id, name: name, shop: ['mason'], labor: 'mason', work, in: [{ type: 'boulder', n: 1 }], out: [{ type: id, n }] });
 stone('block', 'Cut stone blocks', 4, 150);
@@ -404,6 +507,11 @@ R.push(
   { id: 'tan', name: 'Tan a hide', shop: ['tannery'], labor: 'craft', work: 200, in: [{ type: 'hide', n: 1 }], out: [{ type: 'leather', n: 1, mat: 'leather' }] },
   { id: 'l_mail', name: 'Make leather armor', shop: ['leatherworks'], labor: 'craft', work: 300, in: [{ type: 'leather', n: 1 }], out: [{ type: 'mail', n: 1, mat: 'leather' }] },
   { id: 'l_helm', name: 'Make leather cap', shop: ['leatherworks'], labor: 'craft', work: 240, in: [{ type: 'leather', n: 1 }], out: [{ type: 'helm', n: 1, mat: 'leather' }] },
+  { id: 'l_boots', name: 'Make leather boots', shop: ['leatherworks'], labor: 'craft', work: 200, in: [{ type: 'leather', n: 1 }], out: [{ type: 'boots', n: 1, mat: 'leather' }] },
+  { id: 'l_gloves', name: 'Make leather gloves', shop: ['leatherworks'], labor: 'craft', work: 200, in: [{ type: 'leather', n: 1 }], out: [{ type: 'gauntlets', n: 1, mat: 'leather' }] },
+  { id: 'l_shield', name: 'Make leather shield', shop: ['leatherworks'], labor: 'craft', work: 240, in: [{ type: 'leather', n: 1 }], out: [{ type: 'shield', n: 1, mat: 'leather' }] },
+  { id: 'l_clothes', name: 'Sew leather clothes', shop: ['leatherworks', 'clothier'], labor: 'craft', work: 240, in: [{ type: 'leather', n: 1 }], out: [{ type: 'clothes', n: 1, mat: 'leather' }] },
+  { id: 'clothes', name: 'Sew cloth clothes', shop: ['clothier'], labor: 'craft', work: 220, in: [{ type: 'cloth', n: 1 }], out: [{ type: 'clothes', n: 1 }] },
   { id: 'l_greaves', name: 'Make leather leggings', shop: ['leatherworks'], labor: 'craft', work: 240, in: [{ type: 'leather', n: 1 }], out: [{ type: 'greaves', n: 1, mat: 'leather' }] },
   { id: 'weave', name: 'Weave cloth', shop: ['loom'], labor: 'craft', work: 240, in: [{ type: 'plant', n: 1, sub: 'pig_tail' }], out: [{ type: 'cloth', n: 2, mat: 'cloth' }] },
   { id: 'cutgem', name: 'Cut gem', shop: ['jeweler'], labor: 'craft', work: 260, in: [{ type: 'gem', n: 1 }], out: [{ type: 'cutgem', n: 1 }] },
@@ -416,13 +524,15 @@ for (const m of MATS.filter((m) => m.smelt)) {
   R.push({ id: 'smelt_' + m.id, name: `Smelt ${m.name} ore`, shop: ['smelter', 'magma_smelter'], labor: 'smith', work: 260, fuel: true, in: [{ type: 'ore', n: 1, mat: m.id }], out: [{ type: 'bar', n: 2, mat: m.smelt }], special: 'smelt' });
 }
 export const FORGE_METALS = ['copper', 'bronze', 'iron', 'steel', 'silver', 'adamantine'];
-const forgeItems: [string, string, number][] = [
+const forgeItems: [string, string, number, number?][] = [
   ['pick', 'pick', 1], ['axe', 'battle axe', 1], ['sword', 'short sword', 1], ['spear', 'spear', 1], ['hammer', 'war hammer', 1],
-  ['shield', 'shield', 1], ['helm', 'helm', 1], ['mail', 'mail shirt', 2], ['greaves', 'greaves', 1],
+  ['mace', 'mace', 1], ['dagger', 'dagger', 1], ['pike', 'pike', 2], ['crossbow', 'crossbow', 1], ['bolt', 'bolts', 1, 20],
+  ['shield', 'shield', 1], ['helm', 'helm', 1], ['mail', 'mail shirt', 2], ['breastplate', 'breastplate', 3], ['greaves', 'greaves', 1],
+  ['gauntlets', 'gauntlets', 1], ['boots', 'boots', 1],
 ];
 for (const metal of FORGE_METALS) {
-  for (const [id, name, bars] of forgeItems) {
-    R.push({ id: `f_${metal}_${id}`, name: `Forge ${matOf(metal).name} ${name}`, shop: ['forge', 'magma_forge'], labor: 'smith', work: 320, fuel: true, in: [{ type: 'bar', n: bars, mat: metal }], out: [{ type: id, n: 1 }] });
+  for (const [id, name, bars, n] of forgeItems) {
+    R.push({ id: `f_${metal}_${id}`, name: `Forge ${matOf(metal).name} ${name}`, shop: ['forge', 'magma_forge'], labor: 'smith', work: 320, fuel: true, in: [{ type: 'bar', n: bars, mat: metal }], out: [{ type: id, n: n || 1 }] });
   }
 }
 R.push({ id: 'f_goblet', name: 'Forge metal crafts', shop: ['forge', 'magma_forge'], labor: 'smith', work: 260, fuel: true, in: [{ type: 'bar', n: 1 }], out: [{ type: 'craft', n: 3 }] });

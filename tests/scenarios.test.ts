@@ -3,7 +3,7 @@ import { MAT, T, TICKS_DAY } from '../src/sim/defs';
 import { beginMood, computeAlerts } from '../src/sim/events';
 import { Game } from '../src/sim/game';
 import { DG, canPlace, explainTask, placeBuilding, tryDesig } from '../src/sim/jobs';
-import { explainUnit, fallDamage } from '../src/sim/life';
+import { explainUnit, fallDamage, lineOfSight } from '../src/sim/life';
 import { optionsAt, order, setDraft } from '../src/sim/orders';
 import { step } from '../src/sim/sim';
 import { WH } from '../src/sim/world';
@@ -302,7 +302,7 @@ describe('fighting and hunting', () => {
     g.say('An ambush!', 'death', g.cellOf(gob), true);
     expect(g.attention?.text).toBe('An ambush!');
 
-    run(g, 60);
+    run(g, 30);
     expect(soldier.job?.type).toBe('attack');
     expect(explainUnit(g, soldier).status).toMatch(/Answering the alarm/);
     expect(farmer.job?.type === 'flee' || g.cellOf(farmer) !== cell(42, 42)).toBe(true);
@@ -366,6 +366,76 @@ describe('strange moods', () => {
     expect(alertText(g)).toMatch(/strange mood.*needs a workshop/s);
     run(g, TICKS_DAY * 9, () => u.state !== 'mood');
     expect(['berserk', 'melancholy']).toContain(u.state);
+  });
+});
+
+describe('ranged combat', () => {
+  test('a marksdwarf shoots across a gap that nobody can cross, and runs out of bolts', () => {
+    const g = flatGame();
+    const archer = dwarf(g, 40, 40, []);
+    archer.skills.shoot = 800;
+    give(g, archer, 'crossbow', 'weapon', MAT.oak);
+    // only four bolts: enough to hurt a troll, not to kill it
+    g.equip(archer, g.spawnItem('bolt', MAT.iron, g.cellOf(archer), 4), 'ammo');
+    // a moat right across the map: open space three tiles wide between the dwarf and the troll
+    for (let y = 0; y < 96; y++) for (let x = 43; x <= 45; x++) g.w.setTile(cell(x, y), T.Open);
+    const troll = g.addUnit('troll', cell(48, 40), 'enemy');
+    troll.nextThink = 1e9; // it stands and glares instead of wandering out of range
+    expect(g.w.canReach(g.cellOf(archer), g.cellOf(troll), true)).toBe(false);
+
+    setDraft(g, archer, true);
+    const hp = troll.hp;
+    run(g, 600, () => !archer.equip.ammo);
+    // bolts were spent, the troll was hurt, and the dwarf never had to move
+    expect(archer.equip.ammo).toBeUndefined();
+    expect(troll.hp).toBeLessThan(hp);
+    expect(g.cellOf(archer)).toBe(cell(40, 40));
+    expect(g.log.some((l) => /shoots the troll .* with an iron bolt/.test(l.text))).toBe(true);
+    expect(g.log.some((l) => /is out of bolts/.test(l.text))).toBe(true);
+  });
+
+  test('walls block shots: no line of sight, no shooting', () => {
+    const g = flatGame();
+    const archer = dwarf(g, 40, 40, []);
+    give(g, archer, 'crossbow', 'weapon', MAT.oak);
+    g.equip(archer, g.spawnItem('bolt', MAT.iron, g.cellOf(archer), 12), 'ammo');
+    // a wall right across the map: the troll can be neither reached nor seen
+    for (let y = 0; y < 96; y++) g.w.setTile(cell(44, y), T.Wall, MAT.granite);
+    const troll = g.addUnit('troll', cell(48, 40), 'enemy');
+    expect(lineOfSight(g, g.cellOf(archer), g.cellOf(troll))).toBe(false);
+    setDraft(g, archer, true);
+    run(g, 200);
+    expect(g.items.get(archer.equip.ammo)!.n).toBe(12);
+  });
+
+  test('goblin archers shoot too, and armor turns some of it', () => {
+    const g = flatGame();
+    const bare = dwarf(g, 40, 40, []);
+    bare.nextThink = 1e9; // stands there and takes it
+    const gob = g.addUnit('goblin', cell(47, 40), 'enemy');
+    g.equip(gob, g.spawnItem('crossbow', MAT.oak, g.cellOf(gob)), 'weapon');
+    g.equip(gob, g.spawnItem('bolt', MAT.copper, g.cellOf(gob), 30), 'ammo');
+    for (let y = 0; y < 96; y++) for (let x = 43; x <= 45; x++) g.w.setTile(cell(x, y), T.Open);
+    run(g, 400, () => bare.hp < bare.maxHp);
+    expect(bare.hp).toBeLessThan(bare.maxHp);
+    expect(g.log.some((l) => /The goblin shoots/.test(l.text) || /shot dead/.test(l.text))).toBe(true);
+  });
+});
+
+describe('clothing', () => {
+  test('clothes wear out; a dwarf in rags fetches a new outfit, and says why if there is none', () => {
+    const g = flatGame();
+    const u = dwarf(g, 40, 40, []);
+    g.spawnItem('drink', MAT.oak, cell(41, 41), 5, { sub: 'dwarven ale' });
+    u.wear = 10;
+    run(g, 40);
+    expect(explainUnit(g, u).lines.join(' ')).toMatch(/Clothes are in tatters: needs clothes.*none in the fortress/);
+
+    g.spawnItem('clothes', MAT.cloth, cell(44, 40), 1);
+    run(g, 400, () => u.wear === 100);
+    expect(u.wear).toBe(100);
+    expect(g.count((i) => i.type === 'clothes')).toBe(0);
+    expect(u.thoughts.some((t) => /fresh clothes/.test(t.text))).toBe(true);
   });
 });
 

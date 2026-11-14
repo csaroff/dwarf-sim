@@ -83,7 +83,8 @@ export interface Unit {
   atkCd: number;
   job: Job | null;
   carry: number; // item id
-  equip: Record<string, number>; // slot -> item id (pick, axe, weapon, shield, head, body, legs)
+  equip: Record<string, number>; // slot -> item id (pick, axe, weapon, shield, head, body, legs, hands, feet, ammo)
+  wear?: number; // dwarves: condition of the clothes on their back, 0 (naked) .. 100 (new)
   target: number; // unit id being attacked
   idleSince: number;
   nextThink: number;
@@ -107,7 +108,10 @@ export interface Unit {
   whyIdle: string; // explanation shown in UI
   lastFail: string; // most recent job failure, for the UI
   lastFailTick: number;
-  state: '' | 'tantrum' | 'berserk' | 'melancholy' | 'mood' | 'caged';
+  state: '' | 'tantrum' | 'berserk' | 'melancholy' | 'mood' | 'caged' | 'were';
+  cursed?: string; // werebeast curse: the animal form ("wolf"); transforms at the full moon
+  vampire?: boolean;
+  raised?: boolean; // zombie raised by a necromancer
   stateUntil: number;
   moodNeeds?: { type: string; kind?: string; have: boolean }[]; // strange mood
   moodShop?: number;
