@@ -1278,6 +1278,26 @@ test('a forgotten beast keeps to its cavern during the first year, however big t
   expect(late.home).toBeUndefined();
 });
 
+test('a roused forgotten beast kills its fill and goes back down, instead of hunting the fortress to extinction', () => {
+  const g = flatGame();
+  g.tick = TICKS_YEAR + 100; // an established fortress: big enough to draw the beast out of its cavern
+  const crowd = Array.from({ length: 30 }, (_, k) => dwarf(g, 36 + (k % 6), 36 + Math.floor(k / 6), []));
+  for (const d of crowd) d.nextThink = 1e9; // nobody fights back or runs: the worst case
+  const lair = cell(70, 70);
+  const b = beast(g, lair)!;
+  expect(b.home).toBeUndefined();
+  expect(explainUnit(g, b).lines.join(' ')).toMatch(/Roused: it is hunting your dwarves/);
+
+  run(g, 8000, () => b.home !== undefined);
+  // it went home of its own accord, and said so
+  expect(b.home).toBe(lair);
+  expect(g.log.some((l) => /has killed its fill and slinks back to the depths/.test(l.text))).toBe(true);
+  expect(explainUnit(g, b).lines.join(' ')).toMatch(/Keeps to its lair/);
+  // a fifth of the fortress, not all of it
+  run(g, 3000);
+  expect(crowd.filter((d) => !d.dead).length).toBeGreaterThanOrEqual(20);
+});
+
 describe('forgotten beasts are one of a kind', () => {
   test('each has its own body, substance and power, described on arrival and in its panel', () => {
     const g = flatGame();
