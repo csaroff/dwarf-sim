@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { BUILDINGS, H, T, W } from '../src/sim/defs';
+import { BUILDINGS, H, PLANTS, T, W } from '../src/sim/defs';
 import { DG, placeBuilding } from '../src/sim/jobs';
 import { newGame, step } from '../src/sim/sim';
 import { idx } from '../src/sim/world';
@@ -38,11 +38,20 @@ test('a simple fortress survives its first season on a generated map', () => {
   g.addZone('farm', farm, { crop: 'plump_helmet' });
   for (let yy = y - 12; yy < y + 12; yy++) for (let xx = x - 12; xx < x + 12; xx++) {
     const c = idx(xx, yy, g.w.surface[xx + yy * W]);
-    if (g.w.plant[c] >= 10) g.designate(c, DG.Gather);
+    if (PLANTS[g.w.plant[c]].kind === 'shrub') g.designate(c, DG.Gather);
   }
   // workshops on the surface
-  const still = placeBuilding(g, 'still', x + 3, y - 4, g.w.surface[x + 3 + (y - 4) * W]);
-  const carp = placeBuilding(g, 'carpenter', x - 8, y - 1, g.w.surface[x - 8 + (y - 1) * W]);
+  // the nearest spots to the wagon where each one fits (the ground is not flat everywhere)
+  const site = (type: string) => {
+    for (let r = 3; r < 16; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r || dy > 0) continue;
+      const b = placeBuilding(g, type, x + dx, y + dy, g.w.surface[x + dx + (y + dy) * W]);
+      if (b) return b;
+    }
+    return null;
+  };
+  const still = site('still');
+  const carp = site('carpenter');
 
   for (let t = 0; t < 1800 * 12; t++) {
     step(g);

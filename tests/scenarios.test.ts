@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { MAT, T, TICKS_DAY } from '../src/sim/defs';
+import { MAT, PLANT, T, TICKS_DAY } from '../src/sim/defs';
 import { beginMood, computeAlerts } from '../src/sim/events';
 import { Game, MOON_DAYS } from '../src/sim/game';
 import { megabeast, necroSiege, werebeast } from '../src/sim/night';
@@ -328,6 +328,13 @@ test('building over a dig order is refused with a reason instead of silently can
   expect(can.ok).toBe(false);
   expect(!can.ok && can.why).toMatch(/"Carve stairs" order on this tile/);
   expect(g.w.desig[cell(41, 41)]).toBe(DG.Stair);
+
+  // an order to pick a shrub is different: it just gives way
+  const g2 = flatGame();
+  g2.w.plant[cell(41, 41)] = PLANT.strawberry;
+  g2.designate(cell(41, 41), DG.Gather);
+  expect(placeBuilding(g2, 'still', 40, 40, 20)).toBeTruthy();
+  expect(g2.w.desig[cell(41, 41)]).toBe(0);
 });
 
 describe('fighting and hunting', () => {

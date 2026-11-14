@@ -65,6 +65,7 @@ function digDrop(g: Game, cell: number, at: number) {
   if (m.kind === 'stone' && g.rng.chance(0.5)) g.spawnItem('boulder', g.w.mat[cell], at);
   else if (m.kind === 'ore') g.spawnItem('ore', g.w.mat[cell], at);
   else if (m.kind === 'gem') g.spawnItem('gem', g.w.mat[cell], at);
+  else if ((m.id === 'sand' || m.id === 'clay') && g.rng.chance(0.25)) g.spawnItem(m.id, g.w.mat[cell], at); // for the glass furnace and the kiln
 }
 function digOut(g: Game, cell: number, tile: number, dropAt = cell) {
   const w = g.w;
@@ -526,7 +527,7 @@ function ingName(ing: Ing): string {
   if (ing.tag === 'cookable') s = 'cookable food';
   if (ing.tag === 'butcherable') s = 'animal corpse';
   if (ing.tag === 'emptybarrel') s = 'empty barrel';
-  if (ing.tag === 'flux') s = 'flux stone (limestone or marble)';
+  if (ing.tag === 'flux') s = 'flux stone (limestone, marble, dolomite or chalk)';
   return s;
 }
 export function canPlace(g: Game, type: string, x: number, y: number, z: number, bw?: number, bh?: number): Can {
@@ -537,7 +538,8 @@ export function canPlace(g: Game, type: string, x: number, y: number, z: number,
   for (const c of cells) {
     if (!w.revealed(c)) return NO('Unexplored');
     if (g.bAt.has(c)) return NO('Something is already built here');
-    if (g.w.desig[c]) return NO(`There is a "${DG_NAME[g.w.desig[c]]}" order on this tile: cancel it first (Orders > Cancel orders)`);
+    // digging orders are never dropped silently; an order to pick a shrub simply gives way to the building
+    if (g.w.desig[c] && g.w.desig[c] !== DG.Gather) return NO(`There is a "${DG_NAME[g.w.desig[c]]}" order on this tile: cancel it first (Orders > Cancel orders)`);
     const t = w.tile[c];
     if (w.water[c] > 1 || w.magma[c] > 0) {
       if (type !== 'wall' && type !== 'floor' && type !== 'bridge') return NO('Flooded');
@@ -593,6 +595,7 @@ export function canPlace(g: Game, type: string, x: number, y: number, z: number,
 export function placeBuilding(g: Game, type: string, x: number, y: number, z: number, bw?: number, bh?: number): Building | null {
   if (!canPlace(g, type, x, y, z, bw, bh).ok) return null;
   const b = g.addBuilding(type, x, y, z, bw, bh);
+  for (const c of g.cellsOf(b)) if (g.w.desig[c] === DG.Gather) g.designate(c, 0);
   g.w.version++;
   return b;
 }

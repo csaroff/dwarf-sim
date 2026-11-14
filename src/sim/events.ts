@@ -10,7 +10,7 @@ import { machineAlerts } from './machines';
 import { nightAlerts, tickNight } from './night';
 import type { Alert, Building, Item, Job, Unit } from './types';
 import { WH, X, Y, Z, dist, idx, inMap } from './world';
-import { CAVERN1_Z, CAVERN2_Z } from './worldgen';
+import { CAVERN1_Z, CAVERN2_Z, SHRUBS, SURFACE_TREES } from './worldgen';
 
 const first = (u: Unit) => u.name.split(' ')[0];
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -231,6 +231,7 @@ function caravanArrive(g: Game) {
   add('meal', MAT.none, 10, { sub: 'salted fish roast' });
   add('meat', MAT.flesh, 10, { sub: 'horse' });
   for (const s of ['plump_helmet', 'pig_tail', 'cave_wheat', 'sweet_pod']) add('seed', MAT.none, 5, { sub: s });
+  for (const s of ['rope_reed', 'longland_grass', 'quarry_bush', 'dimple_cup']) if (r.chance(0.6)) add('seed', MAT.none, 5, { sub: s });
   add('log', MAT.oak, 10);
   add('cloth', MAT.cloth, 5);
   add('leather', MAT.leather, 3);
@@ -253,6 +254,7 @@ function caravanArrive(g: Game) {
     add('mechanism', MAT.granite, 2);
   } else {
     add('plant', MAT.none, 10, { sub: 'strawberry' });
+    add('plant', MAT.none, 10, { sub: 'sun_berry' });
     add('craft', MAT.oak, 4, { q: 2 });
     add('cage', MAT.oak, 2);
   }
@@ -498,10 +500,10 @@ function nature(g: Game) {
     if (w.plant[c] === 0) w.plant[c] = PLANT.grass;
     else if (w.plant[c] === PLANT.grass && g.season !== 3) {
       if (g.rng.chance(0.04) && !g.unitsIn(c).length) {
-        const pine = g.rng.chance(0.4);
-        w.plant[c] = pine ? PLANT.pine : PLANT.oak;
-        w.setTile(c, T.Tree, pine ? MAT.pine : MAT.oak);
-      } else if (g.rng.chance(0.12)) w.plant[c] = g.rng.pick([PLANT.strawberry, PLANT.prickle_berry, PLANT.rat_weed]);
+        const kind = g.rng.pick(SURFACE_TREES);
+        w.plant[c] = PLANT[kind];
+        w.setTile(c, T.Tree, MAT[kind]);
+      } else if (g.rng.chance(0.12)) w.plant[c] = PLANT[g.rng.pick(SHRUBS)];
       w.version++;
     }
   }

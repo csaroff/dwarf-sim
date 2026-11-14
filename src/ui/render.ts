@@ -416,16 +416,17 @@ export class Renderer {
 
     switch (t) {
       case T.Tree:
+        const bark = shade(hex6(m.fg), 0.55);
         if (p.id === 'pine') {
-          box(3.5, 6, 1, 2, '#5a3e22');
+          box(3.5, 6, 1, 2, bark);
           this.poly(c, px, py, [4, 2.2, 7.6, 7, 0.4, 7], shade(p.fg, 0.6));
           this.poly(c, px, py, [4, 0.3, 6.8, 4.6, 1.2, 4.6], shade(p.fg, 0.85));
-        } else if (p.id === 'tower_cap') {
-          box(3.2, 3, 1.6, 5, '#b8b0a0');
+        } else if (p.under) {
+          box(3.2, 3, 1.6, 5, shade(hex6(m.fg), 0.8));
           this.disc(c, px, py, 4, 3, 3.6, shade(p.fg, 0.7), 2.3);
           this.disc(c, px, py, 3.6, 2.5, 2.6, p.fg, 1.4);
         } else {
-          box(3.5, 5.5, 1, 2.5, '#5a3e22');
+          box(3.5, 5.5, 1, 2.5, bark);
           this.disc(c, px, py, 4, 3.8, 3.5, shade(p.fg, 0.6));
           this.disc(c, px, py, 3.3, 3, 2.1, shade(p.fg, 0.9));
         }

@@ -1,5 +1,5 @@
 // A scripted "player" used by the soak tests and diagnostics: founds and runs a plain, sensible fortress.
-import { H, LABORS, T, W } from '../src/sim/defs';
+import { H, LABORS, PLANTS, T, W } from '../src/sim/defs';
 import { Game } from '../src/sim/game';
 import { DG, placeBuilding } from '../src/sim/jobs';
 import { setDraft } from '../src/sim/orders';
@@ -22,7 +22,7 @@ export function found(g: Game) {
     if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
     const c = idx(xx, yy, sz(xx, yy));
     if (g.w.tile[c] === T.Tree) g.designate(c, DG.Chop);
-    else if (g.w.plant[c] >= 10) g.designate(c, DG.Gather);
+    else if (PLANTS[g.w.plant[c]].kind === 'shrub') g.designate(c, DG.Gather);
   }
   // a deep stairwell: all the way to the first cavern and beyond
   for (let k = 0; k < 16; k++) g.designate(idx(x - 3, y - 3, z - k), DG.Stair);

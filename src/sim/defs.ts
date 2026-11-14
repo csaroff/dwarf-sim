@@ -28,7 +28,7 @@ export const F = {
 } as const;
 
 // ---------------------------------------------------------------- materials
-export type MatKind = 'soil' | 'stone' | 'ore' | 'gem' | 'wood' | 'metal' | 'organic' | 'special';
+export type MatKind = 'soil' | 'stone' | 'ore' | 'gem' | 'wood' | 'metal' | 'organic' | 'glass' | 'ceramic' | 'special';
 export interface MatDef {
   id: string;
   name: string;
@@ -94,7 +94,63 @@ export const MATS: MatDef[] = [
   { id: 'flesh', name: 'flesh', kind: 'organic', fg: '#c05050', bg: '#3a1818', glyph: '%', hard: 1, value: 1 },
   { id: 'charcoal', name: 'charcoal', kind: 'organic', fg: '#707070', bg: '#1c1c1c', glyph: '*', hard: 1, value: 1 },
   { id: 'coke', name: 'coke', kind: 'organic', fg: '#808088', bg: '#1c1c1c', glyph: '*', hard: 1, value: 1 },
+  // (new materials are added at the end so that saved fortresses keep their meaning)
+  // more stone
+  { id: 'dolomite', name: 'dolomite', kind: 'stone', fg: '#e8e0d0', bg: '#5c5850', glyph: '░', hard: 1, value: 1, flux: true },
+  { id: 'chalk', name: 'chalk', kind: 'stone', fg: '#f4f4ec', bg: '#66665e', glyph: '░', hard: 0.8, value: 1, flux: true },
+  { id: 'shale', name: 'shale', kind: 'stone', fg: '#8a8478', bg: '#343028', glyph: '░', hard: 0.9, value: 1 },
+  { id: 'slate', name: 'slate', kind: 'stone', fg: '#7c8490', bg: '#2a2e34', glyph: '▓', hard: 1.1, value: 1 },
+  { id: 'diorite', name: 'diorite', kind: 'stone', fg: '#c4c4c0', bg: '#484846', glyph: '▓', hard: 1.2, value: 1 },
+  { id: 'schist', name: 'schist', kind: 'stone', fg: '#a09a88', bg: '#3c3a30', glyph: '▓', hard: 1.1, value: 1 },
+  { id: 'gneiss', name: 'gneiss', kind: 'stone', fg: '#b0a8a0', bg: '#423e3a', glyph: '▓', hard: 1.2, value: 1 },
+  { id: 'quartzite', name: 'quartzite', kind: 'stone', fg: '#e8dcd0', bg: '#58504a', glyph: '▓', hard: 1.3, value: 1 },
+  { id: 'andesite', name: 'andesite', kind: 'stone', fg: '#84848c', bg: '#2a2a30', glyph: '▓', hard: 1.3, value: 1 },
+  { id: 'rhyolite', name: 'rhyolite', kind: 'stone', fg: '#b09890', bg: '#3c3230', glyph: '▓', hard: 1.3, value: 1 },
+  // more ore
+  { id: 'malachite', name: 'malachite', kind: 'ore', fg: '#40c080', bg: '#4a4544', glyph: '£', hard: 1.1, value: 2, smelt: 'copper' },
+  { id: 'tetrahedrite', name: 'tetrahedrite', kind: 'ore', fg: '#909898', bg: '#4a4544', glyph: '£', hard: 1.1, value: 3, smelt: 'copper' },
+  { id: 'magnetite', name: 'magnetite', kind: 'ore', fg: '#787880', bg: '#4a4544', glyph: '£', hard: 1.2, value: 8, smelt: 'iron' },
+  { id: 'limonite', name: 'limonite', kind: 'ore', fg: '#c89040', bg: '#55534a', glyph: '£', hard: 1.1, value: 8, smelt: 'iron' },
+  { id: 'galena', name: 'galena', kind: 'ore', fg: '#a0a0b0', bg: '#4a4544', glyph: '£', hard: 1.1, value: 5, smelt: 'lead' },
+  { id: 'sphalerite', name: 'sphalerite', kind: 'ore', fg: '#c0b080', bg: '#4a4544', glyph: '£', hard: 1.1, value: 2, smelt: 'zinc' },
+  { id: 'garnierite', name: 'garnierite', kind: 'ore', fg: '#70c070', bg: '#2e2e30', glyph: '£', hard: 1.1, value: 2, smelt: 'nickel' },
+  { id: 'bismuthinite', name: 'bismuthinite', kind: 'ore', fg: '#d0b0d0', bg: '#4a4544', glyph: '£', hard: 1.1, value: 2, smelt: 'bismuth' },
+  { id: 'native_platinum', name: 'native platinum', kind: 'ore', fg: '#f0f0f8', bg: '#2e2e30', glyph: '£', hard: 1.2, value: 40, smelt: 'platinum' },
+  // more metal
+  { id: 'lead', name: 'lead', kind: 'metal', fg: '#8088a0', bg: '#30343c', glyph: '≡', hard: 1, value: 2, weapon: 0.5, armor: 0.5 },
+  { id: 'zinc', name: 'zinc', kind: 'metal', fg: '#c0c8c8', bg: '#484c4c', glyph: '≡', hard: 1, value: 2, weapon: 0.6, armor: 0.6 },
+  { id: 'nickel', name: 'nickel', kind: 'metal', fg: '#c8c8b8', bg: '#4c4c44', glyph: '≡', hard: 1, value: 2, weapon: 0.7, armor: 0.7 },
+  { id: 'bismuth', name: 'bismuth', kind: 'metal', fg: '#e0b0e0', bg: '#544054', glyph: '≡', hard: 1, value: 2, weapon: 0.4, armor: 0.4 },
+  { id: 'platinum', name: 'platinum', kind: 'metal', fg: '#f4f4ff', bg: '#60606c', glyph: '≡', hard: 1, value: 40, weapon: 0.6, armor: 0.6 },
+  { id: 'brass', name: 'brass', kind: 'metal', fg: '#e0c050', bg: '#5a4c1c', glyph: '≡', hard: 1, value: 7, weapon: 0.9, armor: 0.9 },
+  { id: 'electrum', name: 'electrum', kind: 'metal', fg: '#f0e080', bg: '#605828', glyph: '≡', hard: 1, value: 20, weapon: 0.5, armor: 0.5 },
+  { id: 'bismuth_bronze', name: 'bismuth bronze', kind: 'metal', fg: '#e0a878', bg: '#5a4030', glyph: '≡', hard: 1, value: 6, weapon: 1.15, armor: 1.15 },
+  { id: 'rose_gold', name: 'rose gold', kind: 'metal', fg: '#ffb090', bg: '#664430', glyph: '≡', hard: 1, value: 23, weapon: 0.5, armor: 0.5 },
+  { id: 'billon', name: 'billon', kind: 'metal', fg: '#d8c0b0', bg: '#564a44', glyph: '≡', hard: 1, value: 6, weapon: 0.7, armor: 0.7 },
+  // more gems
+  { id: 'opal', name: 'opal', kind: 'gem', fg: '#c0f0e0', bg: '#55534a', glyph: '☼', hard: 1.2, value: 20 },
+  { id: 'jasper', name: 'jasper', kind: 'gem', fg: '#d05030', bg: '#55534a', glyph: '☼', hard: 1.2, value: 8 },
+  { id: 'onyx', name: 'onyx', kind: 'gem', fg: '#808088', bg: '#55534a', glyph: '☼', hard: 1.2, value: 8 },
+  { id: 'jade', name: 'jade', kind: 'gem', fg: '#60c090', bg: '#4a4544', glyph: '☼', hard: 1.3, value: 15 },
+  { id: 'lapis_lazuli', name: 'lapis lazuli', kind: 'gem', fg: '#4060e0', bg: '#4a4544', glyph: '☼', hard: 1.3, value: 12 },
+  { id: 'garnet', name: 'garnet', kind: 'gem', fg: '#c03048', bg: '#4a4544', glyph: '☼', hard: 1.4, value: 20 },
+  { id: 'tourmaline', name: 'tourmaline', kind: 'gem', fg: '#e060b0', bg: '#4a4544', glyph: '☼', hard: 1.4, value: 25 },
+  { id: 'aquamarine', name: 'aquamarine', kind: 'gem', fg: '#70e0e8', bg: '#4a4544', glyph: '☼', hard: 1.4, value: 30 },
+  { id: 'topaz', name: 'topaz', kind: 'gem', fg: '#ffc840', bg: '#2e2e30', glyph: '☼', hard: 1.5, value: 35 },
+  { id: 'sapphire', name: 'sapphire', kind: 'gem', fg: '#3070ff', bg: '#2e2e30', glyph: '☼', hard: 1.6, value: 45 },
+  // more wood
+  { id: 'birch', name: 'birch', kind: 'wood', fg: '#e8dcc0', bg: '#4a4430', glyph: '♣', hard: 1, value: 1 },
+  { id: 'willow', name: 'willow', kind: 'wood', fg: '#b8a060', bg: '#4a3c18', glyph: '♣', hard: 1, value: 1 },
+  { id: 'maple', name: 'maple', kind: 'wood', fg: '#d09050', bg: '#4a3018', glyph: '♣', hard: 1, value: 1 },
+  { id: 'fungiwood', name: 'fungiwood', kind: 'wood', fg: '#d8c890', bg: '#4c4630', glyph: '♠', hard: 1, value: 1 },
+  { id: 'nether_cap', name: 'nether-cap', kind: 'wood', fg: '#6080c0', bg: '#202c48', glyph: '♠', hard: 1, value: 2 },
+  // made things
+  { id: 'green_glass', name: 'green glass', kind: 'glass', fg: '#70d090', bg: '#1c3c28', glyph: '░', hard: 1, value: 2 },
+  { id: 'earthenware', name: 'earthenware', kind: 'ceramic', fg: '#c07850', bg: '#4c2c1c', glyph: '░', hard: 1, value: 2 },
+  { id: 'wool', name: 'wool', kind: 'organic', fg: '#f0ece0', bg: '#55534c', glyph: '§', hard: 1, value: 2 },
 ];
+/** ordinary layer stone that veins and gem clusters can replace */
+export const isLayerStone = (m: number) => MATS[m].kind === 'stone' && MATS[m].id !== 'obsidian';
 export const MAT: Record<string, number> = {};
 MATS.forEach((m, i) => (MAT[m.id] = i));
 export const matOf = (id: string): MatDef => MATS[MAT[id] ?? 0];
@@ -128,6 +184,19 @@ export const PLANTS: PlantDef[] = [
   { id: 'strawberry', name: 'wild strawberry', kind: 'shrub', glyph: '"', fg: '#ff5070', raw: true, cook: true, drink: 'strawberry wine', grow: TICKS_DAY * 5 },
   { id: 'prickle_berry', name: 'prickle berry', kind: 'shrub', glyph: '"', fg: '#b070ff', raw: true, cook: true, drink: 'prickle berry wine', grow: TICKS_DAY * 5 },
   { id: 'rat_weed', name: 'rat weed', kind: 'shrub', glyph: '"', fg: '#90b050', drink: 'sewer brew', grow: TICKS_DAY * 5 },
+  // (appended, like materials, to keep old saves valid)
+  { id: 'birch', name: 'birch', kind: 'tree', glyph: '♣', fg: '#8ac860', wood: 'birch' },
+  { id: 'willow', name: 'willow', kind: 'tree', glyph: '♣', fg: '#70b070', wood: 'willow' },
+  { id: 'maple', name: 'maple', kind: 'tree', glyph: '♣', fg: '#d07030', wood: 'maple' },
+  { id: 'fungiwood', name: 'fungiwood', kind: 'tree', glyph: '♠', fg: '#d8c890', wood: 'fungiwood', under: true },
+  { id: 'nether_cap', name: 'nether-cap', kind: 'tree', glyph: '♠', fg: '#6080c0', wood: 'nether_cap', under: true },
+  { id: 'fisher_berry', name: 'fisher berry', kind: 'shrub', glyph: '"', fg: '#5090ff', raw: true, cook: true, drink: 'fisher berry wine', grow: TICKS_DAY * 5 },
+  { id: 'sun_berry', name: 'sun berry', kind: 'shrub', glyph: '"', fg: '#ffd030', raw: true, cook: true, drink: 'sunshine', grow: TICKS_DAY * 6 },
+  { id: 'whip_vine', name: 'whip vine', kind: 'shrub', glyph: '"', fg: '#c0e060', cook: true, drink: 'whip wine', grow: TICKS_DAY * 5 },
+  { id: 'quarry_bush', name: 'quarry bush', kind: 'crop', glyph: '♣', fg: '#c0c0d0', under: true, cook: true, grow: TICKS_DAY * 6 },
+  { id: 'dimple_cup', name: 'dimple cup', kind: 'crop', glyph: '♠', fg: '#4080e0', under: true, cook: true, grow: TICKS_DAY * 5 },
+  { id: 'rope_reed', name: 'rope reed', kind: 'crop', glyph: 'τ', fg: '#a0c070', cloth: true, grow: TICKS_DAY * 6 },
+  { id: 'longland_grass', name: 'longland grass', kind: 'crop', glyph: '"', fg: '#d0d070', cook: true, drink: 'longland beer', grow: TICKS_DAY * 6 },
 ];
 export const PLANT: Record<string, number> = {};
 PLANTS.forEach((p, i) => (PLANT[p.id] = i));
@@ -157,6 +226,8 @@ export interface ItemDef {
 }
 const I = (d: ItemDef) => d;
 export const ITEMS: Record<string, ItemDef> = {
+  sand: I({ id: 'sand', name: 'sand', cat: 'stone', glyph: '░', value: 1 }),
+  clay: I({ id: 'clay', name: 'clay', cat: 'stone', glyph: '▒', value: 1 }),
   boulder: I({ id: 'boulder', name: 'boulder', cat: 'stone', glyph: '•', value: 1 }),
   ore: I({ id: 'ore', name: 'ore', cat: 'ore', glyph: '*', value: 2 }),
   gem: I({ id: 'gem', name: 'rough gem', cat: 'gems', glyph: '☼', value: 3 }),
@@ -446,6 +517,8 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   loom: B({ id: 'loom', name: 'Loom', w: 3, h: 3, glyphs: '║║║ ☼ §§§', fg: '#e0d8c0', needs: [anyBuildMat], work: 150, menu: 'production', shop: true, desc: 'Weaves pig tails into cloth (for bandages and trade).' }),
   clothier: B({ id: 'clothier', name: "Clothier's Shop", w: 3, h: 3, glyphs: '§ ⌂ ☼ ⌂ §', fg: '#c0a0e0', needs: [anyBuildMat], work: 150, menu: 'production', shop: true, desc: 'Sews clothes from cloth or leather. Clothes wear out, and nobody likes being naked.' }),
   jeweler: B({ id: 'jeweler', name: "Jeweler's Workshop", w: 3, h: 3, glyphs: '☼ ♦ ☼ ♦ ☼', fg: '#60e0e0', needs: [anyBuildMat], work: 150, menu: 'production', shop: true, desc: 'Cuts rough gems.' }),
+  glassfurnace: B({ id: 'glassfurnace', name: 'Glass Furnace', w: 3, h: 3, glyphs: '░╔╗ ☼║░╚╝', fg: '#70d090', needs: [{ type: ['boulder', 'block'], n: 1 }], work: 150, menu: 'production', shop: true, desc: 'Melts sand into green glass: blocks, crafts, portals, tables, statues. Sand turns up when digging through sandy soil. Needs fuel.' }),
+  kiln: B({ id: 'kiln', name: 'Kiln', w: 3, h: 3, glyphs: '▒╔╗ ☼║ö╚╝', fg: '#c07850', needs: [{ type: ['boulder', 'block'], n: 1 }], work: 150, menu: 'production', shop: true, desc: 'Fires clay into bricks, crafts, statues and large pots (which hold drink just as well as barrels do, and need no wood). Clay turns up when digging through clay soil. Needs fuel.' }),
   furnace: B({ id: 'furnace', name: 'Wood Furnace', w: 3, h: 3, glyphs: '▬╔╗ ☼║*╚╝', fg: '#e08040', needs: [{ type: ['boulder', 'block'], n: 1 }], work: 150, menu: 'production', shop: true, desc: 'Burns logs into charcoal (fuel).' }),
   smelter: B({ id: 'smelter', name: 'Smelter', w: 3, h: 3, glyphs: '*╔╗ ☼║≡╚╝', fg: '#e06030', needs: [{ type: ['boulder', 'block'], n: 1 }], work: 150, menu: 'production', shop: true, desc: 'Smelts ore into metal bars. Needs fuel.' }),
   forge: B({ id: 'forge', name: "Metalsmith's Forge", w: 3, h: 3, glyphs: '≡╔╗ ☼║/╚╝', fg: '#c0c0d0', needs: [{ type: ['boulder', 'block'], n: 1 }, { type: 'bar', n: 1 }], work: 200, menu: 'production', shop: true, desc: 'Forges weapons, armor and picks. Needs fuel and an anvil’s worth of metal.' }),
@@ -538,12 +611,27 @@ R.push(
   { id: 'charcoal', name: 'Make charcoal', shop: ['furnace'], labor: 'smith', work: 200, in: [{ type: 'log', n: 1 }], out: [{ type: 'fuel', n: 2, mat: 'charcoal' }] },
   { id: 'coke', name: 'Make coke from coal', shop: ['smelter', 'magma_smelter'], labor: 'smith', work: 200, in: [{ type: 'ore', n: 1, mat: 'coal' }], out: [{ type: 'fuel', n: 4, mat: 'coke' }] },
   { id: 'steel', name: 'Make steel bars', shop: ['smelter', 'magma_smelter'], labor: 'smith', work: 300, fuel: true, in: [{ type: 'bar', n: 1, mat: 'iron' }, { type: 'boulder', n: 1, tag: 'flux' }, { type: 'fuel', n: 1 }], out: [{ type: 'bar', n: 2, mat: 'steel' }] },
+  { id: 'brass', name: 'Make brass bars', shop: ['smelter', 'magma_smelter'], labor: 'smith', work: 260, fuel: true, in: [{ type: 'bar', n: 1, mat: 'copper' }, { type: 'bar', n: 1, mat: 'zinc' }], out: [{ type: 'bar', n: 2, mat: 'brass' }] },
+  { id: 'electrum', name: 'Make electrum bars', shop: ['smelter', 'magma_smelter'], labor: 'smith', work: 260, fuel: true, in: [{ type: 'bar', n: 1, mat: 'gold' }, { type: 'bar', n: 1, mat: 'silver' }], out: [{ type: 'bar', n: 2, mat: 'electrum' }] },
+  { id: 'bismuth_bronze', name: 'Make bismuth bronze bars', shop: ['smelter', 'magma_smelter'], labor: 'smith', work: 260, fuel: true, in: [{ type: 'bar', n: 1, mat: 'bronze' }, { type: 'bar', n: 1, mat: 'bismuth' }], out: [{ type: 'bar', n: 2, mat: 'bismuth_bronze' }] },
+  { id: 'rose_gold', name: 'Make rose gold bars', shop: ['smelter', 'magma_smelter'], labor: 'smith', work: 260, fuel: true, in: [{ type: 'bar', n: 1, mat: 'gold' }, { type: 'bar', n: 1, mat: 'copper' }], out: [{ type: 'bar', n: 2, mat: 'rose_gold' }] },
+  { id: 'billon', name: 'Make billon bars', shop: ['smelter', 'magma_smelter'], labor: 'smith', work: 260, fuel: true, in: [{ type: 'bar', n: 1, mat: 'silver' }, { type: 'bar', n: 1, mat: 'copper' }], out: [{ type: 'bar', n: 2, mat: 'billon' }] },
+  { id: 'weave_reed', name: 'Weave rope reed cloth', shop: ['loom'], labor: 'craft', work: 240, in: [{ type: 'plant', n: 1, sub: 'rope_reed' }], out: [{ type: 'cloth', n: 2, mat: 'cloth' }, { type: 'seed', n: 1, mat: 'none', sub: 'rope_reed' }] },
+  { id: 'glass_block', name: 'Make green glass blocks', shop: ['glassfurnace'], labor: 'craft', work: 240, fuel: true, in: [{ type: 'sand', n: 1 }], out: [{ type: 'block', n: 4, mat: 'green_glass' }] },
+  { id: 'glass_craft', name: 'Make green glass crafts', shop: ['glassfurnace'], labor: 'craft', work: 260, fuel: true, in: [{ type: 'sand', n: 1 }], out: [{ type: 'craft', n: 3, mat: 'green_glass' }] },
+  { id: 'glass_door', name: 'Make green glass portal', shop: ['glassfurnace'], labor: 'craft', work: 280, fuel: true, in: [{ type: 'sand', n: 1 }], out: [{ type: 'door', n: 1, mat: 'green_glass' }] },
+  { id: 'glass_table', name: 'Make green glass table', shop: ['glassfurnace'], labor: 'craft', work: 280, fuel: true, in: [{ type: 'sand', n: 1 }], out: [{ type: 'table', n: 1, mat: 'green_glass' }] },
+  { id: 'glass_statue', name: 'Make green glass statue', shop: ['glassfurnace'], labor: 'craft', work: 400, fuel: true, in: [{ type: 'sand', n: 1 }], out: [{ type: 'statue', n: 1, mat: 'green_glass' }] },
+  { id: 'kiln_pot', name: 'Make large pot', shop: ['kiln'], labor: 'craft', work: 240, fuel: true, in: [{ type: 'clay', n: 1 }], out: [{ type: 'barrel', n: 1, mat: 'earthenware' }] },
+  { id: 'kiln_craft', name: 'Make earthenware crafts', shop: ['kiln'], labor: 'craft', work: 240, fuel: true, in: [{ type: 'clay', n: 1 }], out: [{ type: 'craft', n: 3, mat: 'earthenware' }] },
+  { id: 'kiln_block', name: 'Make bricks', shop: ['kiln'], labor: 'craft', work: 200, fuel: true, in: [{ type: 'clay', n: 1 }], out: [{ type: 'block', n: 4, mat: 'earthenware' }] },
+  { id: 'kiln_statue', name: 'Make earthenware statue', shop: ['kiln'], labor: 'craft', work: 360, fuel: true, in: [{ type: 'clay', n: 1 }], out: [{ type: 'statue', n: 1, mat: 'earthenware' }] },
   { id: 'bronze', name: 'Make bronze bars', shop: ['smelter', 'magma_smelter'], labor: 'smith', work: 260, fuel: true, in: [{ type: 'bar', n: 1, mat: 'copper' }, { type: 'bar', n: 1, mat: 'tin' }], out: [{ type: 'bar', n: 3, mat: 'bronze' }] },
 );
 for (const m of MATS.filter((m) => m.smelt)) {
   R.push({ id: 'smelt_' + m.id, name: `Smelt ${m.name} ore`, shop: ['smelter', 'magma_smelter'], labor: 'smith', work: 260, fuel: true, in: [{ type: 'ore', n: 1, mat: m.id }], out: [{ type: 'bar', n: 2, mat: m.smelt }], special: 'smelt' });
 }
-export const FORGE_METALS = ['copper', 'bronze', 'iron', 'steel', 'silver', 'adamantine'];
+export const FORGE_METALS = ['copper', 'bronze', 'bismuth_bronze', 'iron', 'steel', 'silver', 'adamantine'];
 const forgeItems: [string, string, number, number?][] = [
   ['pick', 'pick', 1], ['axe', 'battle axe', 1], ['sword', 'short sword', 1], ['spear', 'spear', 1], ['hammer', 'war hammer', 1],
   ['mace', 'mace', 1], ['dagger', 'dagger', 1], ['pike', 'pike', 2], ['crossbow', 'crossbow', 1], ['bolt', 'bolts', 1, 20],

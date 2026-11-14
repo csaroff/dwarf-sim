@@ -1,8 +1,16 @@
 // World generation: hills, a river, soil and stone layers, ore veins, gems,
 // two cavern layers, a magma sea with a volcanic pipe, and an adamantine spire.
-import { D, F, H, MAT, PLANT, T, W } from './defs';
+import { D, F, H, MAT, PLANT, PLANTS, T, W, isLayerStone } from './defs';
 import { Rng, fbm2, hash2, noise2 } from './rng';
 import { DIRS8, WH, World, idx, inMap } from './world';
+
+const SEDIMENTARY = ['limestone', 'sandstone', 'dolomite', 'chalk', 'shale'];
+const METAMORPHIC = ['granite', 'marble', 'diorite', 'schist', 'gneiss', 'quartzite', 'slate'];
+const IGNEOUS = ['gabbro', 'basalt', 'andesite', 'rhyolite'];
+export const SURFACE_TREES = ['oak', 'oak', 'pine', 'pine', 'birch', 'maple'];
+export const SHRUBS = PLANTS.filter((p) => p.kind === 'shrub').map((p) => p.id);
+/** which stone of a layer's family is found here (noise is bunched around 0.5, so stretch it) */
+const layer = (list: string[], n: number) => MAT[list[Math.floor(Math.max(0, Math.min(0.999, (n - 0.2) / 0.6)) * list.length)]];
 
 export const CAVERN1_Z = 15;
 export const CAVERN2_Z = 8;
@@ -68,9 +76,9 @@ export function generate(w: World, seed: number): GenResult {
         let m: number;
         if (z === 0) m = MAT.slade;
         else if (depth <= soilDepth) m = soil;
-        else if (z + wob >= 18) m = noise2(x * 0.05, y * 0.05, seed + 31) > 0.5 ? MAT.limestone : MAT.sandstone;
-        else if (z + wob >= 10) m = noise2(x * 0.04, y * 0.04, seed + 41) > 0.62 ? MAT.marble : MAT.granite;
-        else m = noise2(x * 0.05, y * 0.05, seed + 51) > 0.5 ? MAT.gabbro : MAT.basalt;
+        else if (z + wob >= 18) m = layer(SEDIMENTARY, noise2(x * 0.05, y * 0.05, seed + 31));
+        else if (z + wob >= 10) m = layer(METAMORPHIC, noise2(x * 0.04, y * 0.04, seed + 41));
+        else m = layer(IGNEOUS, noise2(x * 0.05, y * 0.05, seed + 51));
         w.mat[i] = m;
       }
     }
@@ -97,7 +105,7 @@ export function generate(w: World, seed: number): GenResult {
           if (!inMap(x + ox, y + oy, z)) continue;
           const i = idx(x + ox, y + oy, z);
           const mk = w.mat[i];
-          if (w.tile[i] === T.Wall && mk >= MAT.limestone && mk <= MAT.basalt) w.mat[i] = mat;
+          if (w.tile[i] === T.Wall && isLayerStone(mk)) w.mat[i] = mat;
         }
         if (rng.chance(0.3)) {
           dx = rng.range(-1, 1);
@@ -116,6 +124,15 @@ export function generate(w: World, seed: number): GenResult {
   vein(MAT.coal, 14, 21, 10, 22);
   vein(MAT.native_silver, 6, 16, 8, 16);
   vein(MAT.native_gold, 4, 13, 7, 14);
+  vein(MAT.malachite, 14, 21, 7, 16);
+  vein(MAT.tetrahedrite, 10, 20, 7, 18);
+  vein(MAT.limonite, 15, 21, 6, 18);
+  vein(MAT.magnetite, 5, 14, 8, 22);
+  vein(MAT.galena, 8, 18, 8, 18);
+  vein(MAT.sphalerite, 8, 18, 7, 16);
+  vein(MAT.bismuthinite, 8, 16, 5, 12);
+  vein(MAT.garnierite, 3, 9, 5, 14);
+  vein(MAT.native_platinum, 3, 8, 3, 8);
   const gems = (mat: number, zLo: number, zHi: number, count: number) => {
     for (let v = 0; v < count; v++) {
       const x = rng.int(W), y = rng.int(H), z = rng.range(zLo, zHi);
@@ -123,7 +140,7 @@ export function generate(w: World, seed: number): GenResult {
         const xx = x + rng.range(-1, 1), yy = y + rng.range(-1, 1);
         if (!inMap(xx, yy, z)) continue;
         const i = idx(xx, yy, z);
-        if (w.tile[i] === T.Wall && w.mat[i] >= MAT.limestone && w.mat[i] <= MAT.basalt) w.mat[i] = mat;
+        if (w.tile[i] === T.Wall && isLayerStone(w.mat[i])) w.mat[i] = mat;
       }
     }
   };
@@ -132,6 +149,16 @@ export function generate(w: World, seed: number): GenResult {
   gems(MAT.emerald, 4, 12, 18);
   gems(MAT.ruby, 4, 12, 18);
   gems(MAT.diamond, 3, 9, 14);
+  gems(MAT.jasper, 14, 21, 24);
+  gems(MAT.onyx, 14, 21, 20);
+  gems(MAT.opal, 12, 20, 16);
+  gems(MAT.jade, 9, 17, 16);
+  gems(MAT.lapis_lazuli, 9, 17, 16);
+  gems(MAT.garnet, 8, 16, 14);
+  gems(MAT.tourmaline, 6, 14, 12);
+  gems(MAT.aquamarine, 5, 12, 12);
+  gems(MAT.topaz, 4, 10, 10);
+  gems(MAT.sapphire, 3, 9, 10);
 
   // ---------------------------------------------------------- caverns
   const cavern = (base: number, cseed: number, thresh: number, deep: boolean) => {
@@ -150,9 +177,11 @@ export function generate(w: World, seed: number): GenResult {
             w.flag[i] |= F.Mud;
             const r = hash2(x, y, cseed + 1);
             if (r < 0.035) {
+              // tower-caps and fungiwood above; the cold blue nether-caps only in the deep cavern
+              const kind = hash2(x, y, cseed + 3) < 0.45 ? (deep ? 'nether_cap' : 'fungiwood') : 'tower_cap';
               w.tile[i] = T.Tree;
-              w.plant[i] = PLANT.tower_cap;
-              w.mat[i] = MAT.tower_cap;
+              w.plant[i] = PLANT[kind];
+              w.mat[i] = MAT[kind];
             } else if (r < 0.6) w.plant[i] = PLANT.cave_moss;
           } else w.tile[i] = T.Open;
         }
@@ -241,13 +270,14 @@ export function generate(w: World, seed: number): GenResult {
       const forest = fbm2(x * 0.06, y * 0.06, seed + 71, 2);
       const r = hash2(x, y, seed + 72);
       if (r < (forest > 0.52 ? 0.11 : 0.015)) {
-        const pine = hash2(x, y, seed + 73) < 0.4;
+        // willows by the water, a mix of the rest elsewhere
+        const k = hash2(x, y, seed + 73);
+        const kind = riverDist[c] < 9 && k < 0.6 ? 'willow' : SURFACE_TREES[Math.floor(k * SURFACE_TREES.length)];
         w.tile[i] = T.Tree;
-        w.plant[i] = pine ? PLANT.pine : PLANT.oak;
-        w.mat[i] = pine ? MAT.pine : MAT.oak;
+        w.plant[i] = PLANT[kind];
+        w.mat[i] = MAT[kind];
       } else if (r < 0.15) {
-        const k = hash2(x, y, seed + 74);
-        w.plant[i] = k < 0.4 ? PLANT.strawberry : k < 0.8 ? PLANT.prickle_berry : PLANT.rat_weed;
+        w.plant[i] = PLANT[SHRUBS[Math.floor(hash2(x, y, seed + 74) * SHRUBS.length)]];
       } else if (w.mat[i] !== MAT.sand || r < 0.5) w.plant[i] = PLANT.grass;
     }
 

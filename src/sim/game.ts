@@ -265,6 +265,9 @@ export class Game {
     let s: string;
     switch (it.type) {
       case 'boulder': s = `${m.name} boulder`; break;
+      case 'sand': s = 'pile of sand'; break;
+      case 'clay': s = 'lump of clay'; break;
+      case 'barrel': s = m.kind === 'ceramic' ? `${m.name} large pot` : `${m.name} barrel`; break;
       case 'ore': s = m.id === 'coal' ? 'bituminous coal' : `${m.name}`; break;
       case 'gem': s = `rough ${m.name}`; break;
       case 'cutgem': s = `cut ${m.name}`; break;
