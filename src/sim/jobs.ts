@@ -765,6 +765,9 @@ function produce(g: Game, u: Unit, b: Building, r: Recipe, ins: Item[]) {
   const out = (type: string, m: number, n: number, extra: Partial<Item> = {}) => {
     const it = g.spawnItem(type, m, c, n, extra);
     g.placeItem(it, c);
+    // anything made in a workshop counts towards the mayor's mandate
+    const md = g.ev.mandate;
+    if (md && md.type === type) md.made += n;
     return it;
   };
   switch (r.special) {

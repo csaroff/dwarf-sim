@@ -40,7 +40,8 @@ export class Game {
   // event bookkeeping (see events.ts)
   ev = {
     nextMigrants: 0, nextRaid: 0, nextCaravan: 0, nextMood: 0, nextBeast: 0, nextWild: 0, nextThief: 0,
-    nextWere: 0, nextNecro: 0, nextMega: 0,
+    nextWere: 0, nextNecro: 0, nextMega: 0, drained: 0,
+    mayor: 0, nextMandate: 0, mandate: null as null | { type: string; name: string; where: string; n: number; made: number; until: number },
     cavern: 0, magmaSeen: false, hell: false, raids: 0, deaths: 0, migrants: 0, lost: false, artifacts: 0,
   };
   wealth = 0;
@@ -452,6 +453,7 @@ export class Game {
   }
   profession(u: Unit): string {
     if (!u.isDwarf) return CREATURES[u.kind].name;
+    if (this.ev.mayor === u.id) return 'Mayor';
     let best = '', bv = 99;
     for (const s of SKILLS) if ((u.skills[s] || 0) > bv) {
       bv = u.skills[s];

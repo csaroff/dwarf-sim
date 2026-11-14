@@ -1,5 +1,6 @@
 // Life: needs, health, combat, and the per-tick brains of dwarves and creatures.
 import { BUILDINGS, CREATURES, ITEMS, MAT, MATS, PARTS, PART_W, TICKS_DAY } from './defs';
+import { quartersProblem } from './civics';
 import { Game, MOON_TICKS } from './game';
 import {
   RUN, assign, canWalk, endJob, explainTask, findWork, hook, isJob, moveDelay, roomQuality, needsFeeding, needsRest, needsTending, runJob, tryDrink, tryEat, tryRescue, tryRest,
@@ -496,6 +497,7 @@ function slowTick(g: Game, u: Unit) {
   u.tired += TIRED_RATE * 10 * (u.state === 'mood' ? 0 : 1);
   u.wear = Math.max(0, (u.wear ?? 100) - 1000 / (TICKS_DAY * 40)); // an outfit lasts most of a year
   u.sober += 10;
+  if (u.vampire) u.hunger = u.thirst = u.tired = u.sober = 0; // the undead want for nothing
   // the slower needs: company and worship (about a week and a fortnight to become pressing)
   u.fun = (u.fun ?? 0) + 1000 / (TICKS_DAY * 7);
   u.faith = (u.faith ?? 0) + 1000 / (TICKS_DAY * 14);
@@ -1158,6 +1160,11 @@ export function explainUnit(g: Game, u: Unit): Explain {
   if (u.cursed && u.state !== 'were') e.lines.push(`☾ Cursed: bitten by a were${u.cursed}. Transforms at every full moon (next in ${g.daysToMoon().toFixed(1)} days) and attacks everyone in reach. Before then, put them alone in a room and lock the door.`);
   if (u.sober > SOBER_SICK) e.lines.push(`⚠ ${days(u.sober)} days without alcohol: withdrawal is killing them. Brew drinks at a Still!`);
   else if (u.sober > SOBER_SLOW) e.lines.push(`⚠ ${days(u.sober)} days without alcohol: working and walking slowly.`);
+  if (u.exposed) e.lines.push('☠ A known vampire: needs no food, drink or sleep, and feeds on sleeping dwarves. Kill it, or lock it away from anyone who sleeps.');
+  if (g.ev.mayor === u.id) {
+    const q = quartersProblem(g, u);
+    e.lines.push(q ? `Mayor. Unhappy with their quarters: ${q}.` : 'Mayor. Content with their quarters.');
+  }
   if ((u.fun ?? 0) > 100) e.lines.push(g.zonesOf('tavern').length ? 'Restless: wants an evening at the tavern, and will go when free.' : 'Restless: wants to unwind in company, but there is no tavern (Zones > Tavern; tables, chairs and a drink stockpile nearby make it better).');
   if ((u.faith ?? 0) > 100) e.lines.push(g.zonesOf('temple').length ? `Wants to pray to ${u.god}, and will go when free.` : `Wants to pray to ${u.god}, but there is no temple (Zones > Temple; statues and engravings make it better).`);
   if ((u.wear ?? 100) < 25) {

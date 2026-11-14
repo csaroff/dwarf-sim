@@ -115,7 +115,9 @@ export interface Unit {
   state: '' | 'tantrum' | 'berserk' | 'melancholy' | 'mood' | 'caged' | 'were';
   cursed?: string; // werebeast curse: the animal form ("wolf"); transforms at the full moon
   cursedAt?: number; // tick of the bite: the moon it happened under does not count
-  vampire?: boolean;
+  vampire?: boolean; // needs no food, drink or sleep, and feeds on sleepers
+  exposed?: boolean; // known to the fortress as a vampire
+  feedAt?: number; // tick the vampire next goes looking for a sleeper
   raised?: boolean; // zombie raised by a necromancer
   stateUntil: number;
   moodNeeds?: { type: string; kind?: string; have: boolean }[]; // strange mood

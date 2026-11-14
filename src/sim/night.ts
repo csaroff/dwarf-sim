@@ -1,7 +1,7 @@
 // Things that come in the night: werebeasts, necromancers and their dead, ghosts, and megabeasts.
 import { CREATURES, FIRST_NAMES, MAT, TICKS_DAY, WERE_KINDS, creaturesOf } from './defs';
 import { Game, MOON_TICKS } from './game';
-import { canWalk } from './jobs';
+import { RUN, assign, canWalk, walk } from './jobs';
 import { brains, killUnit, lineOfSight, nearestHostile, onDeath, setOnStruck, stepPath } from './life';
 import type { Alert, Item, Unit } from './types';
 import { X, Y, Z, cheb, dist } from './world';
@@ -166,6 +166,69 @@ function ghosts(g: Game) {
   }
 }
 
+// ------------------------------------------------------------------ vampires
+/** The fortress now knows. */
+export function expose(g: Game, v: Unit, how: string) {
+  if (v.exposed) return;
+  v.exposed = true;
+  g.say(`${v.name} is a vampire! ${how}. Kill it, or wall it in: it needs no food, drink or sleep.`, 'death', g.cellOf(v), true);
+  for (const d of g.dwarves()) if (d !== v) g.think(d, 'learned that a vampire lives among them', -3, 5);
+}
+/** A dwarf points the finger. Right means the vampire is exposed; wrong means lasting offence. */
+export function accuse(g: Game, accuser: Unit, target: Unit) {
+  if (target.vampire) return expose(g, target, `${first(accuser)}'s accusation struck home`);
+  g.say(`${first(accuser)} accuses ${target.name} of being the vampire. ${first(target)} is nothing of the kind, and is bitterly offended.`, 'bad', g.cellOf(target));
+  g.think(target, 'was falsely accused of being a vampire', -10, 8);
+  g.think(accuser, 'made a false accusation', -3, 4);
+}
+function vampires(g: Game) {
+  for (const u of g.dwarves()) {
+    if (!u.vampire || u.downSince || u.state || u.drafted || u.job?.type === 'drain') continue;
+    if (!u.feedAt) u.feedAt = g.tick + TICKS_DAY * (5 + g.rng.int(4));
+    if (g.tick < u.feedAt) continue;
+    // someone fast asleep, within reach
+    const here = g.cellOf(u);
+    let victim: Unit | null = null, bd = 1e9;
+    for (const o of g.dwarves()) {
+      if (o === u || o.job?.type !== 'sleep' || o.job.step !== 1) continue;
+      const d = dist(here, g.cellOf(o));
+      if (d < bd && g.w.canReach(here, g.cellOf(o), true)) {
+        victim = o;
+        bd = d;
+      }
+    }
+    if (!victim) continue;
+    // (the job has an innocent name: a vampire does not announce itself)
+    assign(g, u, { type: 'drain', label: 'Out for a walk in the night', step: 0, x: victim.x, y: victim.y, z: victim.z, t: 0, started: 0, u: victim.id });
+  }
+}
+RUN.drain = (g, u, j) => {
+  const v = g.units.get(j.u!);
+  const later = () => {
+    u.feedAt = g.tick + TICKS_DAY;
+    return 'done';
+  };
+  if (!v || v.dead || v.job?.type !== 'sleep') return later();
+  const w = walk(g, u, g.cellOf(v), true);
+  if (w === 'blocked') return later();
+  if (w === 'going') return 'run';
+  if (++j.t < 80) return 'run';
+  // was anyone awake to see it?
+  const here = g.cellOf(u);
+  let witness: Unit | null = null;
+  for (const o of g.dwarves()) {
+    if (o === u || o === v || o.downSince || o.job?.type === 'sleep' || o.z !== u.z || cheb(here, g.cellOf(o)) > 6) continue;
+    if (lineOfSight(g, g.cellOf(o), here)) witness = o;
+  }
+  g.ev.drained = (g.ev.drained || 0) + 1;
+  u.feedAt = g.tick + TICKS_DAY * (9 + g.rng.int(6));
+  const first1 = g.ev.drained === 1;
+  killUnit(g, v, 'been found dead, completely drained of blood');
+  if (witness) expose(g, u, `${first(witness)} saw it feeding on ${v.name}`);
+  else if (first1) g.say('A vampire stalks the fortress! One of your dwarves is not what they seem: look for the one who never eats, drinks or sleeps.', 'death', here, true);
+  return 'done';
+};
+
 // ------------------------------------------------------------------ megabeasts
 export function megabeast(g: Game, kind?: string): Unit {
   const d = kind ? CREATURES[kind] : g.rng.pick(creaturesOf('mega'));
@@ -186,6 +249,7 @@ export function tickNight(g: Game) {
   if (!e.nextNecro) e.nextNecro = t + TICKS_DAY * 75;
   if (!e.nextMega) e.nextMega = t + TICKS_DAY * 110;
   if (t % 300 === 0) ghosts(g);
+  if (t % 100 === 0) vampires(g);
   const pop = g.dwarves().length;
   if (!pop) return;
   if (t >= e.nextWere && g.fullMoon()) {
@@ -207,6 +271,9 @@ export function nightAlerts(g: Game, out: Alert[]) {
     if (u.state === 'were') out.push({ id: 'were' + u.id, sev: 'bad', text: `${first(u)}: were${u.cursed}!`, detail: `${u.name} has transformed and will attack anyone in reach until the moon sets. Keep everyone away or lock them in.`, unit: u.id, x: u.x, y: u.y, z: u.z });
     else if (u.cursed && moon < 3) out.push({ id: 'curse' + u.id, sev: moon < 1 ? 'bad' : 'warn', text: `${first(u)} turns in ${moon.toFixed(1)}d`, detail: `${u.name} carries the were${u.cursed} curse and transforms when the moon is full. Send them into a room alone (select, right-click "Go here") and lock the door (click the door) until it passes. The change heals every wound.`, unit: u.id });
   }
+  const known = g.dwarves().find((u) => u.vampire && u.exposed);
+  if (known) out.push({ id: 'vampire', sev: 'bad', text: `Vampire: ${first(known)}`, detail: `${known.name} is a known vampire and will keep feeding on sleepers every week or two. Kill it (select a soldier and right-click it: Attack), or lock it in a room alone: it needs no food, drink or sleep, so a walled-in vampire makes a tireless worker.`, unit: known.id });
+  else if (g.ev.drained && g.dwarves().some((u) => u.vampire)) out.push({ id: 'vampire', sev: 'bad', text: 'A vampire among you', detail: `${g.ev.drained} dwar${g.ev.drained > 1 ? 'ves have' : 'f has'} been found drained of blood. The vampire looks like anyone else, but never eats, drinks or sleeps: its Food, Thirst and Rest bars never drop, and it is suspiciously old. When you think you know, select another dwarf and right-click the suspect: Accuse. A wrong accusation gives lasting offence.` });
   const gs = Array.from(g.units.values()).filter((u) => u.kind === 'ghost' && !u.dead);
   if (gs.length) out.push({ id: 'ghosts', sev: 'warn', text: `${gs.length} ghost${gs.length > 1 ? 's' : ''}`, detail: `${gs.map((u) => cap(u.name)).slice(0, 3).join(', ')}: unburied for too long. Haunted dwarves grow miserable. Bury the body in a coffin; if the body is gone, a mason can engrave a memorial slab to place (Build > Furniture).`, x: gs[0].x, y: gs[0].y, z: gs[0].z });
   void canWalk;

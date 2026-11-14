@@ -6,6 +6,7 @@ import {
   DG_LABOR, DG_NAME, RUN, assign, canWalk, endJob, explainTask, fetch, isJob, needsTending, tryBuild, tryDesig, tryHaul, tryRescue, walk,
 } from './jobs';
 import { SOBER_SLOW, downReason, killUnit } from './life';
+import { civicAlerts, tickCivics } from './civics';
 import { machineAlerts } from './machines';
 import { nightAlerts, tickNight } from './night';
 import type { Alert, Building, Item, Job, Unit } from './types';
@@ -148,7 +149,14 @@ function migrants(g: Game) {
   }
   const n = Math.min(40 - pop, 2 + g.rng.int(3) + Math.min(4, Math.floor(g.wealth / 4000)));
   const c = g.randomEdgeCell();
-  for (let k = 0; k < n; k++) g.addDwarf(g.randomNear(c, 2));
+  const arrivals: Unit[] = [];
+  for (let k = 0; k < n; k++) arrivals.push(g.addDwarf(g.randomNear(c, 2)));
+  // now and then one of the newcomers is not what they seem
+  if (pop >= 14 && !g.dwarves().some((u) => u.vampire) && g.rng.chance(0.3)) {
+    const v = g.rng.pick(arrivals);
+    v.vampire = true;
+    v.age = 150 + g.rng.int(300);
+  }
   g.ev.migrants++;
   g.say(`${n} migrants have arrived${g.wealth > 5000 ? ', drawn by tales of wealth' : ''}.`, 'event', c);
 }
@@ -604,6 +612,7 @@ export function computeAlerts(g: Game): Alert[] {
   }
   nightAlerts(g, out);
   machineAlerts(g, out);
+  civicAlerts(g, out);
   // ---- enemies
   const foes = Array.from(g.units.values()).filter((u) => u.faction === 'enemy' && !u.dead && u.state !== 'caged' && g.w.revealed(g.cellOf(u)) && u.kind !== 'kobold' && (u.home === undefined || !!u.target));
   // an enemy that has no route to anyone is a different problem from one at the gate
@@ -745,6 +754,7 @@ export function tickEvents(g: Game) {
   if (t >= e.nextMood) startMood(g);
   if (t >= e.nextBeast) beast(g);
   tickNight(g);
+  tickCivics(g);
 }
 
 export { killUnit, plantOf, PLANTS };

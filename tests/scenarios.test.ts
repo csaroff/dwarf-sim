@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { MAT, PLANT, T, TICKS_DAY } from '../src/sim/defs';
 import { beginMood, computeAlerts } from '../src/sim/events';
 import { Game, MOON_DAYS } from '../src/sim/game';
+import { issueMandate } from '../src/sim/civics';
 import { megabeast, necroSiege, werebeast } from '../src/sim/night';
 import { DG, canPlace, explainTask, placeBuilding, toggleLever, tryDesig } from '../src/sim/jobs';
 import { TERRITORY, explainUnit, fallDamage, killUnit, lineOfSight } from '../src/sim/life';
@@ -669,6 +670,95 @@ describe('taverns and temples', () => {
     expect(u.job?.type).toBe('haul');
     run(g, 600, () => u.faith! < 10);
     expect(u.faith).toBeLessThan(10); // prayed once the hauling was done
+  });
+});
+
+describe('the mayor', () => {
+  test('a big enough fortress elects a mayor, who complains about quarters and issues mandates', () => {
+    const g = flatGame();
+    const crowd = Array.from({ length: 15 }, (_, k) => dwarf(g, 40 + (k % 5), 40 + Math.floor(k / 5), k === 0 ? ['craft'] : []));
+    run(g, 60);
+    const mayor = g.units.get(g.ev.mayor)!;
+    expect(mayor).toBeTruthy();
+    expect(g.profession(mayor)).toBe('Mayor');
+    expect(explainUnit(g, mayor).lines.join(' ')).toMatch(/Mayor\. Unhappy with their quarters: has no bed of their own/);
+
+    // a mandate shows as an alert with the count, the deadline and where to make the things
+    issueMandate(g, 'craft');
+    expect(alertText(g)).toMatch(/Mandate: 0\/6 crafts.*within 14\.0 days.*Craftsdwarf's Workshop/s);
+
+    // two batches of rock crafts (three each) meet it
+    g.spawnItem('boulder', MAT.granite, cell(46, 44), 2);
+    const shop = built(g, 'craftsdwarf', 48, 44);
+    shop.bills.push({ recipe: 'craft_stone', mode: 'count', n: 2, paused: false });
+    run(g, 3000, () => !g.ev.mandate);
+    expect(g.log.some((l) => /mandate has been met: 6 crafts/.test(l.text))).toBe(true);
+    void crowd;
+  });
+
+  test('an ignored mandate enrages the mayor, and somebody else pays for it', () => {
+    const g = flatGame();
+    Array.from({ length: 15 }, (_, k) => dwarf(g, 40 + (k % 5), 40 + Math.floor(k / 5), []));
+    run(g, 60);
+    issueMandate(g, 'statue');
+    g.ev.mandate!.until = g.tick + 20;
+    run(g, 100);
+    expect(g.ev.mandate).toBeNull();
+    expect(g.log.some((l) => /mandate for 1 statues was not met/.test(l.text))).toBe(true);
+    expect(g.log.some((l) => /has been given the blame/.test(l.text))).toBe(true);
+    expect(g.units.get(g.ev.mayor)!.thoughts.some((t) => /mandate ignored/.test(t.text))).toBe(true);
+  });
+});
+
+describe('vampires', () => {
+  test('a vampire drains a sleeper unseen; the fortress is told what to look for; an accusation exposes it', () => {
+    const g = flatGame();
+    const vampire = dwarf(g, 44, 40, []);
+    vampire.vampire = true;
+    vampire.feedAt = 1;
+    const sleeper = dwarf(g, 40, 40, []);
+    sleeper.tired = 100;
+    // two others, far away and looking elsewhere
+    const accuser = dwarf(g, 70, 70, []);
+    const innocent = dwarf(g, 72, 70, []);
+    accuser.nextThink = innocent.nextThink = 1e9;
+
+    run(g, 600, () => sleeper.dead);
+    expect(sleeper.dead).toBe(true);
+    expect(g.log.some((l) => /found dead, completely drained of blood/.test(l.text))).toBe(true);
+    // nobody saw it: the game says what to look for, without naming anyone
+    expect(vampire.exposed).toBeFalsy();
+    expect(g.attention?.text).toMatch(/A vampire stalks the fortress/);
+    expect(alertText(g)).toMatch(/A vampire among you.*never eats, drinks or sleeps.*Accuse/s);
+    expect(explainUnit(g, vampire).status).not.toMatch(/vampire/i);
+
+    // the tell: its needs never move
+    run(g, 300);
+    expect(vampire.hunger + vampire.thirst + vampire.tired).toBe(0);
+    expect(innocent.hunger).toBeGreaterThan(0);
+
+    // a wrong accusation costs something...
+    order(g, accuser, optionsAt(g, accuser, g.cellOf(innocent)).find((o) => o.label.startsWith('Accuse'))!);
+    expect(innocent.thoughts.some((t) => /falsely accused/.test(t.text))).toBe(true);
+    // ...the right one exposes it, and then it can be attacked
+    order(g, accuser, optionsAt(g, accuser, g.cellOf(vampire)).find((o) => o.label.startsWith('Accuse'))!);
+    expect(vampire.exposed).toBe(true);
+    expect(alertText(g)).toMatch(/Vampire: /);
+    expect(optionsAt(g, accuser, g.cellOf(vampire)).some((o) => /Attack .* \(vampire\)/.test(o.label))).toBe(true);
+  });
+
+  test('a waking witness exposes it on the spot', () => {
+    const g = flatGame();
+    const vampire = dwarf(g, 44, 40, []);
+    vampire.vampire = true;
+    vampire.feedAt = 1;
+    const sleeper = dwarf(g, 40, 40, []);
+    sleeper.tired = 100;
+    const witness = dwarf(g, 41, 43, []);
+    witness.nextThink = 1e9;
+    run(g, 600, () => sleeper.dead);
+    expect(vampire.exposed).toBe(true);
+    expect(g.log.some((l) => /is a vampire! .* saw it feeding/.test(l.text))).toBe(true);
   });
 });
 

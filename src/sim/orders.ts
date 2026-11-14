@@ -7,6 +7,7 @@ import {
   tryPull, tryRescue, trySlaughter, tryTend, tryTend2, tryTrain,
 } from './jobs';
 import { downReason } from './life';
+import { accuse } from './night';
 import type { Job, Option, Unit } from './types';
 import { X, Y, Z } from './world';
 
@@ -43,6 +44,8 @@ export function optionsAt(g: Game, u: Unit, cell: number): Option[] {
       if (o.downSince && !o.inBed) add(`Rescue ${name} (carry to bed)`, tryRescue(g, u, o));
       if (o.wounds.length) add(`Treat ${name}'s wounds`, tryTend(g, u, o));
       if (o.downSince || o.inBed) add(`Bring ${name} food or drink`, tryFeed(g, u, o));
+      if (o.exposed) add(`Attack ${name} (vampire)`, g.w.canReach(here, cell, true) ? mkJob('attack', `Attacking ${name}`, cell, { u: o.id }) : 'no path to it');
+      else if (g.ev.drained) out.push(no ? { label: `Accuse ${name} of being the vampire`, why: no } : { label: `Accuse ${name} of being the vampire`, act: 'accuse', arg: o.id });
       continue;
     }
     const reach: Try = g.w.canReach(here, cell, true) ? mkJob('attack', `Attacking ${name}`, cell, { u: o.id }) : 'no path to it';
@@ -99,7 +102,13 @@ export function optionsAt(g: Game, u: Unit, cell: number): Option[] {
 
 /** Carry out a context-menu choice. */
 export function order(g: Game, u: Unit, opt: Option) {
-  if (!opt.job || cannotOrder(g, u)) return;
+  if (cannotOrder(g, u)) return;
+  if (opt.act === 'accuse') {
+    const target = g.units.get(opt.arg || 0);
+    if (target) accuse(g, u, target);
+    return;
+  }
+  if (!opt.job) return;
   if (opt.job.type === 'move' && u.drafted) u.moveOrder = opt.job.x + opt.job.y * 96 + opt.job.z * 96 * 96;
   assign(g, u, opt.job, true);
 }

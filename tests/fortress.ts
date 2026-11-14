@@ -2,7 +2,7 @@
 import { H, LABORS, PLANTS, T, W } from '../src/sim/defs';
 import { Game } from '../src/sim/game';
 import { DG, placeBuilding } from '../src/sim/jobs';
-import { setDraft } from '../src/sim/orders';
+import { optionsAt, order, setDraft } from '../src/sim/orders';
 import { idx } from '../src/sim/world';
 
 /** the stairwell starts at ground level of its own column, which is not always the wagon's level */
@@ -88,6 +88,20 @@ export function upkeep(g: Game) {
   for (let k = 0; k < 16; k++) {
     const c = idx(x - 3, y - 3, z - k);
     if (g.w.tile[c] === T.Open && g.w.revealed(c) && !g.bAt.has(c)) placeBuilding(g, 'stairs', x - 3, y - 3, z - k);
+  }
+  // a vampire about: accuse the dwarf whose food, thirst and rest never drop, and set the armed on a known one
+  const all = g.dwarves();
+  if (g.ev.drained && !all.some((u) => u.exposed)) {
+    const suspect = all.find((u) => u.hunger === 0 && u.thirst === 0 && u.tired === 0);
+    const accuser = all.find((u) => u !== suspect && !u.state && !u.downSince);
+    const opt = suspect && accuser ? optionsAt(g, accuser, g.cellOf(suspect)).find((o) => o.label.startsWith('Accuse')) : undefined;
+    if (opt && accuser) order(g, accuser, opt);
+  }
+  for (const v of all.filter((u) => u.exposed)) {
+    for (const d of all.filter((u) => u !== v && (u.equip.weapon || u.equip.axe || u.equip.pick)).slice(0, 5)) {
+      const opt = optionsAt(g, d, g.cellOf(v)).find((o) => o.label.startsWith('Attack') && o.job);
+      if (opt) order(g, d, opt);
+    }
   }
   // hunt game, not bears
   for (const a of g.units.values()) if (a.faction === 'wild' && ['deer', 'boar', 'groundhog'].includes(a.kind)) a.hunted = true;
