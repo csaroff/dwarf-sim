@@ -101,6 +101,9 @@ export interface Unit {
   skills: Record<string, number>; // xp
   labors: Record<Labor, number>; // 0 off, 1 (highest) .. 4
   bed: number; // owned bed building id
+  fun?: number; // need to relax in company, 0 (content) .. 100+ (restless)
+  faith?: number; // need to pray, likewise
+  god?: string; // the deity this dwarf worships
   drafted: boolean;
   militia: boolean;
   moveOrder: number; // idx to walk to when drafted (-1 none)
@@ -178,7 +181,7 @@ export interface Building {
 
 export interface Zone {
   id: number;
-  kind: 'stockpile' | 'meeting' | 'hospital' | 'fishing' | 'farm' | 'pasture' | 'burrow';
+  kind: 'stockpile' | 'meeting' | 'hospital' | 'fishing' | 'farm' | 'pasture' | 'burrow' | 'tavern' | 'temple';
   name: string;
   z: number;
   cells: number[];

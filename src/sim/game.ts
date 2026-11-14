@@ -1,7 +1,7 @@
 // Game state + basic operations on items, units, buildings and zones.
 // The behaviour lives in jobs.ts (work), life.ts (needs, health, combat) and events.ts (the world acting on you).
 import {
-  BUILDINGS, CATS, CREATURES, Cat, DAYS_SEASON, DWARF_COLORS, DWARF_WORDS, F, FIRST_NAMES, H, ITEMS, Ing, LABORS, Labor, MAT, MATS, PLANTS,
+  BUILDINGS, CATS, CREATURES, Cat, DAYS_SEASON, DWARF_COLORS, GODS, DWARF_WORDS, F, FIRST_NAMES, H, ITEMS, Ing, LABORS, Labor, MAT, MATS, PLANTS,
   PROFESSION, QMARK, QVALUE, SEASONS, SKILLS, SKILL_LEVELS, SUR_A, SUR_B, T, TICKS_DAY, TICKS_SEASON, TICKS_YEAR, W, plantOf,
 } from './defs';
 import { Rng } from './rng';
@@ -428,6 +428,9 @@ export class Game {
     u.tired = r.int(30);
     u.age = r.range(20, 110);
     u.wear = r.range(55, 100);
+    u.fun = r.int(40);
+    u.faith = r.int(40);
+    u.god = r.pick(GODS);
     u.trait = r.pick(['stoic', 'quick to anger', 'cheerful', 'gloomy', 'greedy', 'brave', 'nervous', 'stubborn', 'lazy', 'tireless', 'curious', 'grudge-holding']);
     u.likes = r.pick([...PLANTS.filter((p) => p.drink).map((p) => p.drink!), 'granite', 'iron', 'gold', 'cats', 'yaks', 'plump helmets', 'prepared meals', 'obsidian', 'statues']);
     return u;
@@ -588,7 +591,7 @@ export class Game {
 
   // ------------------------------------------------------------------ zones
   addZone(kind: Zone['kind'], cells: number[], extra: Partial<Zone> = {}): Zone {
-    const names: Record<string, string> = { stockpile: 'Stockpile', meeting: 'Meeting Hall', hospital: 'Hospital', fishing: 'Fishing Spot', farm: 'Farm Plot', pasture: 'Pasture', burrow: 'Burrow' };
+    const names: Record<string, string> = { stockpile: 'Stockpile', meeting: 'Meeting Hall', hospital: 'Hospital', fishing: 'Fishing Spot', farm: 'Farm Plot', pasture: 'Pasture', burrow: 'Burrow', tavern: 'Tavern', temple: 'Temple' };
     const n = Array.from(this.zones.values()).filter((z) => z.kind === kind).length + 1;
     const z: Zone = { id: this.nextId++, kind, name: `${names[kind]} ${n}`, z: Z(cells[0]), cells: [], cats: kind === 'stockpile' ? CATS.filter((c) => c !== 'refuse' && c !== 'corpses') : [], crop: 'plump_helmet', ...extra };
     this.zones.set(z.id, z);

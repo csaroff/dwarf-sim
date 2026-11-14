@@ -18,6 +18,17 @@ export function found(g: Game) {
     if (g.w.tile[c] === T.Floor) cells.push(c);
   }
   g.addZone('stockpile', cells);
+  // a tavern and a temple on the grass by the wagon
+  const patch = (x0: number, y0: number) => {
+    const out: number[] = [];
+    for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) {
+      const c = idx(x0 + dx, y0 + dy, sz(x0 + dx, y0 + dy));
+      if (g.w.tile[c] === T.Floor) out.push(c);
+    }
+    return out;
+  };
+  g.addZone('tavern', patch(x + 10, y + 3));
+  g.addZone('temple', patch(x + 10, y + 8));
   for (let yy = y - 14; yy < y + 14; yy++) for (let xx = x - 14; xx < x + 14; xx++) {
     if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
     const c = idx(xx, yy, sz(xx, yy));

@@ -58,6 +58,8 @@ const TOOLS: Record<string, Tool[]> = {
     { id: 'z_meeting', label: 'Meeting hall', zone: 'meeting', desc: 'Where idle dwarves gather.' },
     { id: 'z_hospital', label: 'Hospital', zone: 'hospital', desc: 'Beds inside become hospital beds: the wounded are carried here and treated.' },
     { id: 'z_fishing', label: 'Fishing', zone: 'fishing', desc: 'Mark shore tiles next to water.' },
+    { id: 'z_tavern', label: 'Tavern', zone: 'tavern', desc: 'Dwarves come here to drink and talk when they need to unwind. Furnish it and keep drink nearby.' },
+    { id: 'z_temple', label: 'Temple', zone: 'temple', desc: 'Dwarves come here to pray. Statues and engravings make it a better one.' },
     { id: 'z_pasture', label: 'Pasture', zone: 'pasture', desc: 'Where tame animals graze.' },
     { id: 'z_remove', label: 'Remove zone', erase: 'zone', desc: 'Remove zone tiles in the rectangle.' },
   ],

@@ -707,6 +707,10 @@ export function computeAlerts(g: Game): Alert[] {
     }
     if (probs.length) out.push({ id: 'spfull', sev: 'warn', text: 'Stockpiles full', detail: `Items are being left where they lie: ${probs.slice(0, 4).join('; ')}. Make the stockpile bigger or add another (Zones > Stockpile). Food left outside a stockpile rots.` });
   }
+  // ---- leisure nobody can have
+  const restless = ds.filter((u) => (u.fun ?? 0) > 110).length, pious = ds.filter((u) => (u.faith ?? 0) > 110).length;
+  if (restless >= Math.max(2, pop / 3) && !g.zonesOf('tavern').length) out.push({ id: 'notavern', sev: 'warn', text: 'No tavern', detail: `${restless} dwarves want somewhere to drink and talk, and are growing unhappy. Mark a room as a Tavern (Zones > Tavern). Tables, chairs and drink close by make it better.` });
+  if (pious >= Math.max(2, pop / 3) && !g.zonesOf('temple').length) out.push({ id: 'notemple', sev: 'warn', text: 'No temple', detail: `${pious} dwarves want somewhere to pray. Mark a room as a Temple (Zones > Temple). Statues, smoothed and engraved walls make it better.` });
   // ---- no stockpile / tools
   if (!g.zonesOf('stockpile').length && g.tick > 300) out.push({ id: 'nostock', sev: 'warn', text: 'No stockpile', detail: 'Items are lying where they fell. Create a stockpile (Zones > Stockpile) so haulers gather everything in one place; food left outside rots.' });
   return out;

@@ -667,4 +667,5 @@ export const DWARF_WORDS: [string, string][] = [
   ['Sarvesh', 'Treasure'], ['Gusil', 'Gold'], ['Rakust', 'Dagger'], ['Ducim', 'Bridge'], ['Nitig', 'Gears'], ['Lanzil', 'Fortress'], ['Okil', 'Bold'], ['Rimtar', 'Rim'],
   ['Besmar', 'Lance'], ['Ilral', 'Deep'], ['Kivish', 'Realm'], ['Astesh', 'Gate'], ['Erith', 'Purple'], ['Tathtat', 'Brew'], ['Zuden', 'Mug'], ['Morul', 'Beard'],
 ];
+export const GODS = ['Armok, god of blood', 'Zon the Anvil, god of metal', 'Ber the Deep, goddess of caverns', 'Okil of the Brew, god of ale', 'Likot Goldvein, goddess of wealth', 'Thob the Silent, god of death'];
 export const DWARF_COLORS = ['#ffffff', '#ffe080', '#80e0ff', '#ff9070', '#b0ff80', '#e0a0ff', '#ffb0d0', '#c0c0ff'];

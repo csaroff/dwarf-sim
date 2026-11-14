@@ -26,7 +26,7 @@ export function unitPanel(g: Game, u: Unit, nSel: number): string {
   const e = explainUnit(g, u);
   const d = CREATURES[u.kind];
   let h = `<div class="box"><h2><span>${esc(u.isDwarf ? u.name : cap(g.unitName(u)))}</span>${btn('×', 'deselect')}</h2>`;
-  if (u.isDwarf) h += `<div class="sub">${g.profession(u)} · age ${u.age} · ${u.trait} · likes ${esc(u.likes)}</div>`;
+  if (u.isDwarf) h += `<div class="sub">${g.profession(u)} · age ${u.age} · ${u.trait} · likes ${esc(u.likes)}${u.god ? ` · worships ${esc(u.god)}` : ''}</div>`;
   else h += `<div class="sub">${u.faction === 'fort' ? 'Tame' : u.faction === 'enemy' ? 'Hostile' : u.faction === 'merchant' ? 'Visitor' : d.predator ? 'Wild predator' : 'Wild animal'}</div>`;
   if (nSel > 1) h += `<div class="sub amber">${nSel} dwarves selected — right-click orders go to all of them</div>`;
   h += `<div class="status ${e.tone}">${esc(e.status)}</div>${whys(e.lines)}`;
@@ -55,6 +55,8 @@ export function unitPanel(g: Game, u: Unit, nSel: number): string {
     h += bar('Thirst', 1 - u.thirst / 100, tone(1 - u.thirst / 100), u.thirst > 100 ? 'dehydrated' : u.thirst > 50 ? 'thirsty' : 'quenched');
     h += bar('Rest', 1 - u.tired / 100, tone(1 - u.tired / 100), u.tired > 80 ? 'tired' : 'rested');
     const sob = 1 - u.sober / SOBER_SICK;
+    h += bar('Leisure', 1 - (u.fun ?? 0) / 130, tone(1 - (u.fun ?? 0) / 130), (u.fun ?? 0) > 100 ? 'restless' : 'fine');
+    h += bar('Faith', 1 - (u.faith ?? 0) / 130, tone(1 - (u.faith ?? 0) / 130), (u.faith ?? 0) > 100 ? 'wants to pray' : 'at peace');
     const wear = u.wear ?? 100;
     h += bar('Clothes', wear / 100, tone(wear / 100), wear <= 0 ? 'naked' : wear < 25 ? 'tattered' : wear < 60 ? 'worn' : 'fine');
     h += bar('Booze', sob, u.sober > SOBER_SLOW ? '#e05a4a' : '#d0a040', u.sober > SOBER_SLOW ? `${(u.sober / TICKS_DAY).toFixed(1)}d sober!` : 'tipsy');
@@ -170,6 +172,8 @@ export function zonePanel(g: Game, z: Zone): string {
   } else if (z.kind === 'meeting') h += whys(['Idle dwarves and pets gather here. Tables, chairs and statues nearby make it a dining hall.']);
   else if (z.kind === 'hospital') h += whys([`Beds placed in this zone are hospital beds (${Array.from(g.buildings.values()).filter((b) => b.type === 'bed' && b.built && g.zoneOfKind(g.center(b), 'hospital') === z).length} here). Doctors carry the wounded to them and treat them. Stock cloth and splints for faster healing.`]);
   else if (z.kind === 'fishing') h += whys([z.cells.some((c) => g.w.safe(c) && g.w.waterNear(c) >= 0) ? 'Dwarves with the Fish labor will fish here.' : '⚠ No shore tiles: the zone must include walkable ground next to water.', 'Mind the carp.']);
+  else if (z.kind === 'tavern') h += whys([`Dwarves who need to unwind come here (${g.dwarves().filter((u) => (u.fun ?? 0) > 100).length} are restless now). Company, a drink within reach, furniture and engravings all make the visit better.`]);
+  else if (z.kind === 'temple') h += whys([`Dwarves come here to pray (${g.dwarves().filter((u) => (u.faith ?? 0) > 100).length} want to now). Statues, smoothed and engraved stone make it a finer temple.`]);
   else if (z.kind === 'pasture') h += whys(['Tame animals wander here instead of the meeting hall.']);
   h += `<div class="row">${btn('Delete zone', 'delzone', z.id, 'danger')}</div>`;
   return h + '</div>';

@@ -28,7 +28,7 @@ const tint = (hex: string, f: number) => shade(hex, Math.round(f * 25) / 25);
 
 const ZONE_TINT: Record<string, string> = {
   stockpile: 'rgba(214,190,90,0.16)', farm: 'rgba(150,110,60,0.22)', meeting: 'rgba(90,140,230,0.16)', hospital: 'rgba(240,120,160,0.18)',
-  fishing: 'rgba(80,200,220,0.20)', pasture: 'rgba(110,200,90,0.14)', burrow: 'rgba(200,200,200,0.1)',
+  fishing: 'rgba(80,200,220,0.20)', pasture: 'rgba(110,200,90,0.14)', tavern: 'rgba(240,160,60,0.18)', temple: 'rgba(190,130,255,0.18)', burrow: 'rgba(200,200,200,0.1)',
 };
 const DESIG_TINT = ['', 'rgba(255,190,40,0.30)', 'rgba(255,120,40,0.32)', 'rgba(255,230,90,0.30)', 'rgba(255,230,90,0.30)', 'rgba(255,150,40,0.38)', 'rgba(120,255,120,0.30)', 'rgba(140,200,255,0.30)', 'rgba(200,140,255,0.30)', 'rgba(255,80,80,0.35)'];
 const DESIG_CH = ['', '', '▼', 'X', '▲', '', '', '', '', 'x'];

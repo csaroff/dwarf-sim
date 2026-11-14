@@ -640,6 +640,38 @@ test('a crowd of unarmed dwarves mobs a lone goblin instead of dying one by one'
   expect(loner.job?.type).toBe('flee');
 });
 
+describe('taverns and temples', () => {
+  test('a restless dwarf says there is no tavern; given one, goes for a drink with friends', () => {
+    const g = flatGame();
+    const u = dwarf(g, 40, 40, []);
+    const friend = dwarf(g, 41, 40, []);
+    u.fun = friend.fun = 120;
+    run(g, 30);
+    expect(explainUnit(g, u).lines.join(' ')).toMatch(/there is no tavern \(Zones > Tavern/);
+    expect(alertText(g)).toMatch(/No tavern/);
+
+    g.addZone('tavern', [cell(50, 50), cell(51, 50), cell(50, 51), cell(51, 51)]);
+    g.spawnItem('drink', MAT.oak, cell(52, 50), 5, { sub: 'dwarven ale' });
+    run(g, 800, () => u.fun! < 10 && friend.fun! < 10);
+    expect(u.fun).toBeLessThan(10);
+    expect(u.thoughts.some((t) => /merry evening drinking with friends|good company/.test(t.text))).toBe(true);
+    expect(alertText(g)).not.toMatch(/No tavern/);
+  });
+
+  test('work comes first unless the need has been ignored for a long time', () => {
+    const g = flatGame();
+    const u = dwarf(g, 40, 40, ['haul']);
+    u.faith = 60; // would like to pray, but it can wait
+    g.addZone('temple', [cell(50, 50)]);
+    g.addZone('stockpile', [cell(44, 44)]);
+    g.spawnItem('log', MAT.oak, cell(42, 40), 1);
+    run(g, 20);
+    expect(u.job?.type).toBe('haul');
+    run(g, 600, () => u.faith! < 10);
+    expect(u.faith).toBeLessThan(10); // prayed once the hauling was done
+  });
+});
+
 describe('fortress defences', () => {
   test('a weapon trap strikes every raider that crosses it, and keeps working', () => {
     const g = flatGame();

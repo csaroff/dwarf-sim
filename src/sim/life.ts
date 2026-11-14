@@ -2,7 +2,7 @@
 import { BUILDINGS, CREATURES, ITEMS, MAT, MATS, PARTS, PART_W, TICKS_DAY } from './defs';
 import { Game, MOON_TICKS } from './game';
 import {
-  RUN, assign, canWalk, endJob, explainTask, findWork, hook, isJob, moveDelay, needsFeeding, needsRest, needsTending, runJob, tryDrink, tryEat, tryRescue, tryRest,
+  RUN, assign, canWalk, endJob, explainTask, findWork, hook, isJob, moveDelay, roomQuality, needsFeeding, needsRest, needsTending, runJob, tryDrink, tryEat, tryRescue, tryRest,
   tryDress, trySleep, tryTend, tryTend2, tryTrain, walk,
 } from './jobs';
 import type { Item, Job, Unit, Wound } from './types';
@@ -496,6 +496,9 @@ function slowTick(g: Game, u: Unit) {
   u.tired += TIRED_RATE * 10 * (u.state === 'mood' ? 0 : 1);
   u.wear = Math.max(0, (u.wear ?? 100) - 1000 / (TICKS_DAY * 40)); // an outfit lasts most of a year
   u.sober += 10;
+  // the slower needs: company and worship (about a week and a fortnight to become pressing)
+  u.fun = (u.fun ?? 0) + 1000 / (TICKS_DAY * 7);
+  u.faith = (u.faith ?? 0) + 1000 / (TICKS_DAY * 14);
   if (u.hunger >= STARVE) return killUnit(g, u, 'starved to death');
   if (u.thirst >= DEHYDRATE) return killUnit(g, u, 'died of thirst');
   if (u.sober > SOBER_SICK && g.tick % 150 < 10) {
@@ -508,6 +511,8 @@ function slowTick(g: Game, u: Unit) {
     if (u.hunger > 100) g.think(u, 'is starving', -8, 1);
     if (u.thirst > 100) g.think(u, 'is parched', -8, 1);
     if (u.tired > 105) g.think(u, 'is exhausted', -4, 1);
+    if ((u.fun ?? 0) > 130) g.think(u, 'has had no chance to unwind in company', -3, 1);
+    if ((u.faith ?? 0) > 130) g.think(u, 'has been unable to pray', -2, 1);
     if ((u.wear ?? 100) <= 0) g.think(u, 'has nothing to wear', -5, 1);
     else if ((u.wear ?? 100) < 25) g.think(u, 'is dressed in tattered rags', -2, 1);
     if (u.wounds.some((w) => w.sev === 2 && !w.treated)) g.think(u, 'is in pain from untreated wounds', -6, 1);
@@ -726,8 +731,18 @@ function decide(g: Game, u: Unit) {
     u.whyIdle = 'Melancholy: has lost the will to work or eat.';
     return;
   }
+  // long-neglected leisure comes before work; otherwise it fills idle time
+  const leisure = tryLeisure(g, u, 100);
+  if (leisure) return assign(g, u, leisure);
   const work = findWork(g, u);
   if (work) return assign(g, u, work);
+  const spare = tryLeisure(g, u, 45);
+  if (spare) {
+    const why = u.whyIdle;
+    assign(g, u, spare);
+    u.whyIdle = why;
+    return;
+  }
   if (!j) {
     const why = u.whyIdle;
     const spot = g.meetingSpot();
@@ -735,6 +750,59 @@ function decide(g: Game, u: Unit) {
     u.whyIdle = why;
   }
 }
+/** Somewhere in a zone of this kind the dwarf can walk to, or -1. */
+function zoneSpot(g: Game, u: Unit, kind: 'tavern' | 'temple'): number {
+  const here = g.cellOf(u);
+  for (const z of g.zonesOf(kind)) {
+    for (let k = 0; k < 6; k++) {
+      const c = z.cells[g.rng.int(z.cells.length)];
+      if (g.w.safe(c) && g.w.connected(here, c)) return c;
+    }
+  }
+  return -1;
+}
+/** A visit to the tavern or the temple, if the need is at least `min` and there is one to go to. */
+function tryLeisure(g: Game, u: Unit, min: number): Job | null {
+  if ((u.fun ?? 0) >= min) {
+    const c = zoneSpot(g, u, 'tavern');
+    if (c >= 0) return mkJob('relax', 'Relaxing at the tavern', c);
+  }
+  if ((u.faith ?? 0) >= min) {
+    const c = zoneSpot(g, u, 'temple');
+    if (c >= 0) return mkJob('pray', `Praying to ${(u.god || 'Armok').split(',')[0]}`, c);
+  }
+  return null;
+}
+RUN.relax = (g, u, j) => {
+  const w = walk(g, u, idx(j.x, j.y, j.z), false);
+  if (w === 'blocked') return 'done';
+  if (w === 'going') return 'run';
+  if (++j.t < 220) return 'run';
+  u.fun = 0;
+  const here = g.cellOf(u);
+  // a drink in hand and friends at the table make the evening
+  let company = 0;
+  for (const o of g.dwarves()) if (o !== u && o.z === u.z && cheb(here, g.cellOf(o)) <= 4) company++;
+  const drink = g.findItem(u, (i) => i.type === 'drink' && dist(g.cellOf(i), here) <= 8);
+  if (drink) {
+    u.thirst = 0;
+    u.sober = 0;
+    g.consume(drink, 1);
+  }
+  const fine = roomQuality(g, here);
+  g.think(u, company && drink ? 'spent a merry evening drinking with friends' : company ? 'enjoyed good company at the tavern' : 'had a quiet moment at the tavern', (company ? 4 : 2) + (drink ? 2 : 0) + fine, 4);
+  return 'done';
+};
+RUN.pray = (g, u, j) => {
+  const w = walk(g, u, idx(j.x, j.y, j.z), false);
+  if (w === 'blocked') return 'done';
+  if (w === 'going') return 'run';
+  if (++j.t < 180) return 'run';
+  u.faith = 0;
+  const fine = roomQuality(g, g.cellOf(u));
+  g.think(u, fine >= 2 ? 'communed with their god in a splendid temple' : 'found peace in prayer', 3 + fine * 2, 5);
+  return 'done';
+};
 function noteNeedFail(g: Game, u: Unit, text: string) {
   u.lastFail = text;
   u.lastFailTick = g.tick;
@@ -1090,6 +1158,8 @@ export function explainUnit(g: Game, u: Unit): Explain {
   if (u.cursed && u.state !== 'were') e.lines.push(`☾ Cursed: bitten by a were${u.cursed}. Transforms at every full moon (next in ${g.daysToMoon().toFixed(1)} days) and attacks everyone in reach. Before then, put them alone in a room and lock the door.`);
   if (u.sober > SOBER_SICK) e.lines.push(`⚠ ${days(u.sober)} days without alcohol: withdrawal is killing them. Brew drinks at a Still!`);
   else if (u.sober > SOBER_SLOW) e.lines.push(`⚠ ${days(u.sober)} days without alcohol: working and walking slowly.`);
+  if ((u.fun ?? 0) > 100) e.lines.push(g.zonesOf('tavern').length ? 'Restless: wants an evening at the tavern, and will go when free.' : 'Restless: wants to unwind in company, but there is no tavern (Zones > Tavern; tables, chairs and a drink stockpile nearby make it better).');
+  if ((u.faith ?? 0) > 100) e.lines.push(g.zonesOf('temple').length ? `Wants to pray to ${u.god}, and will go when free.` : `Wants to pray to ${u.god}, but there is no temple (Zones > Temple; statues and engravings make it better).`);
   if ((u.wear ?? 100) < 25) {
     const t = tryDress(g, u);
     e.lines.push(`${u.wear! <= 0 ? 'Naked' : 'Clothes are in tatters'}: ${isJob(t) ? 'will change into new clothes soon' : t}.`);
