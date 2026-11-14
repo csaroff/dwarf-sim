@@ -1,6 +1,6 @@
 // Life: needs, health, combat, and the per-tick brains of dwarves and creatures.
 import { BUILDINGS, CREATURES, ITEMS, MAT, MATS, PARTS, PART_W, TICKS_DAY } from './defs';
-import { quartersProblem } from './civics';
+import { maybeMarry, mourn, quartersProblem } from './civics';
 import { Game, MOON_TICKS } from './game';
 import {
   RUN, assign, canWalk, endJob, explainTask, findWork, hook, isJob, moveDelay, roomQuality, needsFeeding, needsRest, needsTending, runJob, tryDrink, tryEat, tryRescue, tryRest,
@@ -36,6 +36,7 @@ export function killUnit(g: Game, u: Unit, cause: string, by?: Unit) {
     g.say(`${u.name}, ${g.profession(u)}, has ${cause}.`, 'death', cell);
     g.ev.deaths++;
     for (const o of g.dwarves()) g.think(o, 'lost a friend', -6, 8);
+    mourn(g, u);
   } else if (u.faction === 'fort') g.say(`${cap(g.unitName(u))} (tame) has ${cause}.`, 'bad', cell);
   else if (u.faction === 'enemy') g.say(`${cap(g.unitName(u))} has ${cause}.`, 'good', cell);
   else if (by && by.faction === 'fort') g.say(`${cap(g.unitName(u))} has ${cause}.`, 'combat', cell);
@@ -608,7 +609,7 @@ function mobOdds(g: Game, u: Unit, threat: Unit): boolean {
   let foes = 0, friends = 0;
   for (const o of g.units.values()) {
     if (o.dead || o.state === 'caged') continue;
-    if (o.isDwarf && o.faction === 'fort' && !o.state) {
+    if (o.isDwarf && o.faction === 'fort' && !o.state && !o.child) {
       if (!o.downSince && Math.abs(o.z - u.z) <= 1 && cheb(here, g.cellOf(o)) <= 8) friends++;
     } else if (g.hostile(u, o) && Math.abs(o.z - threat.z) <= 1 && cheb(tc, g.cellOf(o)) <= 10) {
       if (CREATURES[o.kind].size > 1.3 || rangedOf(g, o)) return false;
@@ -764,6 +765,15 @@ function decide(g: Game, u: Unit) {
     u.whyIdle = 'Melancholy: has lost the will to work or eat.';
     return;
   }
+  if (u.child && !sheltering) {
+    // children do not work: they play near the others until they come of age
+    if (!j) {
+      const spot = g.meetingSpot();
+      wanderTo(g, u, g.randomNear(g.w.connected(here, spot) ? spot : here, 5), 60 + g.rng.int(80));
+    }
+    u.whyIdle = `A child: plays until coming of age in ${(((u.grownAt || 0) - g.tick) / TICKS_DAY).toFixed(0)} days, then joins the workforce.`;
+    return;
+  }
   if (sheltering) {
     const zs = g.zonesOf('burrow');
     let spot = -1;
@@ -834,7 +844,12 @@ RUN.relax = (g, u, j) => {
   const here = g.cellOf(u);
   // a drink in hand and friends at the table make the evening
   let company = 0;
-  for (const o of g.dwarves()) if (o !== u && o.z === u.z && cheb(here, g.cellOf(o)) <= 4) company++;
+  for (const o of g.dwarves()) {
+    if (o === u || o.z !== u.z || cheb(here, g.cellOf(o)) > 4) continue;
+    company++;
+    // evenings at the tavern are where couples are made
+    if (o.job?.type === 'relax') maybeMarry(g, u, o);
+  }
   const drink = g.findItem(u, (i) => i.type === 'drink' && dist(g.cellOf(i), here) <= 8);
   if (drink) {
     u.thirst = 0;
@@ -1226,6 +1241,10 @@ export function explainUnit(g: Game, u: Unit): Explain {
   if (u.cursed && u.state !== 'were') e.lines.push(`☾ Cursed: bitten by a were${u.cursed}. Transforms at every full moon (next in ${g.daysToMoon().toFixed(1)} days) and attacks everyone in reach. Before then, put them alone in a room and lock the door.`);
   if (u.sober > SOBER_SICK) e.lines.push(`⚠ ${days(u.sober)} days without alcohol: withdrawal is killing them. Brew drinks at a Still!`);
   else if (u.sober > SOBER_SLOW) e.lines.push(`⚠ ${days(u.sober)} days without alcohol: working and walking slowly.`);
+  const mate = g.units.get(u.spouse || 0);
+  if (mate && !mate.dead) e.lines.push(`Married to ${mate.name}.`);
+  const kids = g.dwarves().filter((o) => o.parents?.includes(u.id));
+  if (kids.length) e.lines.push(`Parent of ${kids.map((k) => k.name.split(' ')[0] + (k.child ? ' (child)' : '')).join(', ')}.`);
   if (u.exposed) e.lines.push('☠ A known vampire: needs no food, drink or sleep, and feeds on sleeping dwarves. Kill it, or lock it away from anyone who sleeps.');
   if (g.ev.mayor === u.id) {
     const q = quartersProblem(g, u);

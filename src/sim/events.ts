@@ -405,7 +405,7 @@ export function trade(g: Game, sell: Map<number, number>, buy: Map<number, numbe
 // ------------------------------------------------------------------ strange moods
 function startMood(g: Game) {
   g.ev.nextMood = g.tick + TICKS_DAY * (18 + g.rng.int(20));
-  const c = g.dwarves().filter((u) => !u.state && canWalk(u) && !u.drafted && g.tick - u.arrived > TICKS_DAY * 5);
+  const c = g.dwarves().filter((u) => !u.state && !u.child && canWalk(u) && !u.drafted && g.tick - u.arrived > TICKS_DAY * 5);
   if (c.length < 5 || g.dwarves().some((u) => u.state === 'mood')) return;
   beginMood(g, g.rng.pick(c));
 }
@@ -669,7 +669,7 @@ export function computeAlerts(g: Game): Alert[] {
   // ---- idle dwarves who wanted to work but could not
   const stuck = ds.filter((u) => (!u.job || u.job.type === 'idle') && u.whyIdle.startsWith('Found') && g.tick - u.idleSince > 150 && !u.drafted);
   if (stuck.length) out.push({ id: 'stuck', sev: 'warn', text: `${stuck.length} dwar${stuck.length > 1 ? 'ves' : 'f'} blocked`, detail: `${first(stuck[0])}: ${stuck[0].whyIdle}`, unit: stuck[0].id });
-  const nolabor = ds.filter((u) => (!u.job || u.job.type === 'idle') && !u.whyIdle.startsWith('Found') && g.tick - u.idleSince > 400 && !u.drafted && canWalk(u) && !u.state);
+  const nolabor = ds.filter((u) => !u.child && (!u.job || u.job.type === 'idle') && !u.whyIdle.startsWith('Found') && g.tick - u.idleSince > 400 && !u.drafted && canWalk(u) && !u.state);
   if (nolabor.length >= Math.max(2, pop / 3)) out.push({ id: 'idle', sev: 'warn', text: `${nolabor.length} idle`, detail: `${nolabor.map(first).slice(0, 6).join(', ')} have nothing to do. Designate more work, or enable more labors for them (L).`, unit: nolabor[0].id });
   // ---- designations nobody can do
   const byKind = new Map<number, number[]>();

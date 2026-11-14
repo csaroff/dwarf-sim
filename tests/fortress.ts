@@ -106,7 +106,7 @@ export function upkeep(g: Game) {
   // hunt game, not bears
   for (const a of g.units.values()) if (a.faction === 'wild' && ['deer', 'boar', 'groundhog'].includes(a.kind)) a.hunted = true;
   // a labor nobody alive has (the game raises an alert for this): hand it to the least busy dwarf
-  const ds = g.dwarves();
+  const ds = g.dwarves().filter((u) => !u.child);
   for (const l of LABORS) {
     if (!ds.length || ds.some((u) => u.labors[l] > 0)) continue;
     const u = ds.slice().sort((a, b) => LABORS.filter((x) => a.labors[x]).length - LABORS.filter((x) => b.labors[x]).length)[0];

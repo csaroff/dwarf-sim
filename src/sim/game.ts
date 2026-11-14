@@ -464,6 +464,7 @@ export class Game {
   }
   profession(u: Unit): string {
     if (!u.isDwarf) return CREATURES[u.kind].name;
+    if (u.child) return 'Child';
     if (this.ev.mayor === u.id) return 'Mayor';
     let best = '', bv = 99;
     for (const s of SKILLS) if ((u.skills[s] || 0) > bv) {

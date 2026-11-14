@@ -717,8 +717,11 @@ export class Renderer {
     const d = CREATURES[u.kind];
     const lying = u.isDwarf && u.state !== 'were' && (u.downSince > 0 || u.job?.type === 'sleep' || u.job?.type === 'rest');
     const sp = spriteOf(u);
-    const px1 = s / 8;
+    // children are drawn smaller, standing on the same ground
+    const scale = u.child ? 0.68 : 1;
+    const px1 = (s / 8) * scale;
     const size = Math.ceil(px1);
+    const ox = (s - s * scale) / 2, oy = s - s * scale;
     c.fillStyle = 'rgba(0,0,0,0.38)';
     c.fillRect(px, py, s, s);
     const alpha = c.globalAlpha;
@@ -729,7 +732,7 @@ export class Renderer {
         if (!col) continue;
         c.fillStyle = col;
         // lying down: the sprite is turned on its side
-        c.fillRect(px + Math.floor((lying ? ry : rx) * px1), py + Math.floor((lying ? rx : ry) * px1), size, size);
+        c.fillRect(px + Math.floor(ox + (lying ? ry : rx) * px1), py + Math.floor(oy + (lying ? rx : ry) * px1), size, size);
       }
     c.globalAlpha = alpha;
     if (!u.isDwarf) {

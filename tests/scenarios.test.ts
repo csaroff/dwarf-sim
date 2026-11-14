@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { MAT, PLANT, T, TICKS_DAY } from '../src/sim/defs';
 import { beast, beginMood, computeAlerts, trade } from '../src/sim/events';
 import { Game, MOON_DAYS } from '../src/sim/game';
-import { issueMandate } from '../src/sim/civics';
+import { birth, issueMandate, maybeMarry } from '../src/sim/civics';
 import { megabeast, necroSiege, werebeast } from '../src/sim/night';
 import { DG, canPlace, explainTask, placeBuilding, toggleLever, tryDesig } from '../src/sim/jobs';
 import { TERRITORY, explainUnit, fallDamage, killUnit, lineOfSight } from '../src/sim/life';
@@ -762,6 +762,47 @@ test('elves refuse anything made of wood or from an animal', () => {
   const gem = g.spawnItem('cutgem', MAT.ruby, cell(46, 45), 1);
   expect(trade(g, new Map([[chair.id, 1]]), new Map())).toMatch(/elves recoil from the oak chair: it is made of wood/);
   expect(trade(g, new Map([[gem.id, 1]]), new Map())).toBe('');
+});
+
+describe('families', () => {
+  test('couples marry, have children who do not work, and the children grow up', () => {
+    const g = flatGame();
+    const a = dwarf(g, 40, 40, []);
+    const b = dwarf(g, 41, 40, []);
+    expect(maybeMarry(g, a, b, 1)).toBe(true);
+    expect(explainUnit(g, a).lines.join(' ')).toMatch(new RegExp(`Married to ${b.name}`));
+    expect(g.history.some((h) => /were married/.test(h.text))).toBe(true);
+
+    const baby = birth(g, a, b);
+    expect(g.profession(baby)).toBe('Child');
+    // the child takes its mother's family name and cannot be given orders
+    expect(baby.name.split(' ')[1]).toBe(a.name.split(' ')[1]);
+    expect(optionsAt(g, baby, cell(45, 45))[0].why).toMatch(/is a child: too young to take orders/);
+    g.spawnItem('log', MAT.oak, cell(44, 44), 1);
+    g.addZone('stockpile', [cell(50, 50)]);
+    run(g, 200);
+    expect(baby.job?.type ?? 'idle').toBe('idle');
+    expect(explainUnit(g, baby).lines.join(' ')).toMatch(/A child: plays until coming of age in \d+ days/);
+
+    // coming of age
+    baby.grownAt = g.tick + 10;
+    run(g, 700, () => !baby.child);
+    expect(baby.child).toBe(false);
+    expect(baby.labors.haul).toBeGreaterThan(0);
+    run(g, 900, () => g.looseItems().length === 0);
+    expect(g.looseItems().length).toBe(0); // and now somebody hauls that log
+  });
+
+  test('the family of the dead grieve harder than the rest', () => {
+    const g = flatGame();
+    const a = dwarf(g, 40, 40, []);
+    const b = dwarf(g, 41, 40, []);
+    const other = dwarf(g, 42, 40, []);
+    maybeMarry(g, a, b, 1);
+    killUnit(g, a, 'died for the test');
+    expect(b.thoughts.some((t) => t.text === 'lost their spouse')).toBe(true);
+    expect(other.thoughts.some((t) => t.text === 'lost their spouse')).toBe(false);
+  });
 });
 
 describe('the mayor', () => {

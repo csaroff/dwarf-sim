@@ -104,6 +104,10 @@ export interface Unit {
   fun?: number; // need to relax in company, 0 (content) .. 100+ (restless)
   faith?: number; // need to pray, likewise
   god?: string; // the deity this dwarf worships
+  spouse?: number; // unit id
+  child?: boolean; // not yet grown: no work, no draft
+  grownAt?: number; // tick a child comes of age
+  parents?: number[]; // unit ids
   drafted: boolean;
   militia: boolean;
   moveOrder: number; // idx to walk to when drafted (-1 none)

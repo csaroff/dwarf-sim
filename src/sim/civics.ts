@@ -40,10 +40,74 @@ export function issueMandate(g: Game, type?: string) {
   g.say(`${mayor.name}, Mayor, has mandated the making of ${n} ${name}. (Due in 14 days; make them at ${where}.)`, 'event', g.cellOf(mayor));
 }
 
+// ------------------------------------------------------------------ families
+export const CHILDHOOD = TICKS_DAY * 24;
+/** Two unmarried adults who have just spent an evening together may decide to marry. */
+export function maybeMarry(g: Game, a: Unit, b: Unit, chance = 0.12) {
+  if (a.spouse || b.spouse || a.child || b.child || a.state || b.state || !g.rng.chance(chance)) return false;
+  a.spouse = b.id;
+  b.spouse = a.id;
+  g.think(a, 'got married', 10, 12);
+  g.think(b, 'got married', 10, 12);
+  g.say(`${a.name} and ${b.name} have married. The fortress celebrates!`, 'good', g.cellOf(a));
+  g.chronicle(`${a.name} and ${b.name} were married.`);
+  for (const o of g.dwarves()) if (o !== a && o !== b) g.think(o, 'attended a wedding', 2, 3);
+  return true;
+}
+export function birth(g: Game, mother: Unit, father: Unit): Unit {
+  const baby = g.addDwarf(g.cellOf(mother));
+  baby.name = `${baby.name.split(' ')[0]} ${mother.name.split(' ').slice(1).join(' ')}`;
+  for (const k in baby.skills) baby.skills[k] = 0;
+  for (const k in baby.labors) (baby.labors as Record<string, number>)[k] = 0;
+  baby.militia = false;
+  baby.age = 0;
+  baby.child = true;
+  baby.grownAt = g.tick + CHILDHOOD;
+  baby.parents = [mother.id, father.id];
+  baby.maxHp = baby.hp = 20;
+  g.think(mother, 'became a parent', 8, 10);
+  g.think(father, 'became a parent', 8, 10);
+  g.say(`${mother.name} has given birth to a child, ${baby.name.split(' ')[0]}.`, 'good', g.cellOf(mother));
+  g.chronicle(`${baby.name} was born to ${mother.name} and ${father.name}.`);
+  return baby;
+}
+function families(g: Game, ds: Unit[]) {
+  for (const u of ds) {
+    if (u.child && g.tick >= (u.grownAt || 0)) {
+      u.child = false;
+      u.age = 12;
+      u.maxHp = 40;
+      u.hp = Math.min(u.maxHp, u.hp + 20);
+      u.labors.haul = 3;
+      u.labors.build = 3;
+      u.labors.farm = 4;
+      u.labors.doctor = 4;
+      g.say(`${u.name} has grown up and joins the workforce.`, 'good', g.cellOf(u));
+    }
+    const mate = u.spouse ? g.units.get(u.spouse) : undefined;
+    if (u.spouse && (!mate || mate.dead)) u.spouse = 0;
+    // married couples, now and then; a fortress only has room for so many
+    if (mate && !mate.dead && u.id < mate.id && ds.length < 60 && !u.state && !mate.state && !u.downSince && !mate.downSince && g.rng.chance(0.012)) {
+      if (ds.filter((o) => o.child && o.parents?.includes(u.id)).length < 3) birth(g, u, mate);
+    }
+  }
+}
+/** grief for the family of the dead */
+export function mourn(g: Game, dead: Unit) {
+  const mate = g.units.get(dead.spouse || 0);
+  if (mate && !mate.dead) g.think(mate, 'lost their spouse', -14, 16);
+  for (const id of dead.parents || []) {
+    const p = g.units.get(id);
+    if (p && !p.dead) g.think(p, 'lost a child', -16, 16);
+  }
+  for (const o of g.dwarves()) if (o.parents?.includes(dead.id) && o.child) g.think(o, 'lost a parent', -12, 16);
+}
+
 export function tickCivics(g: Game) {
   const e = g.ev;
   const t = g.tick;
   const ds = g.dwarves();
+  if (t % 300 === 0) families(g, ds);
   let mayor = mayorOf(g);
   if (!mayor) {
     if (e.mayor) {
@@ -51,9 +115,9 @@ export function tickCivics(g: Game) {
       e.mandate = null;
       g.say('The mayor is dead. The fortress will hold an election.', 'info');
     }
-    if (ds.length < MAYOR_POP) return;
+    if (ds.filter((u) => !u.child).length < MAYOR_POP) return;
     // the best-liked dwarf wins: the happiest of those who are of sound mind
-    const able = ds.filter((u) => !u.state && !u.downSince && !u.cursed);
+    const able = ds.filter((u) => !u.state && !u.downSince && !u.cursed && !u.child);
     if (!able.length) return;
     mayor = able.reduce((a, b) => (b.mood > a.mood ? b : a));
     e.mayor = mayor.id;
