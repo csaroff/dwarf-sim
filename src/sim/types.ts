@@ -192,6 +192,7 @@ export interface Building {
   corpse?: string; // coffins: who is buried here
   powered?: boolean; // machines: is its network turning?
   pwr?: string; // machines: what the network is doing, or why it is not
+  trippedAt?: number; // pressure plates: tick it last fired
   name?: string;
   why?: string;
 }

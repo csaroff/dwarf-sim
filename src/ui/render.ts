@@ -551,6 +551,15 @@ export class Renderer {
         box(1, 1, 6, 6, shade(fg, 0.6));
         box(2, 2, 4, 4, '#11427c');
         return true;
+      case 'plate':
+        box(1, 1, 6, 6, '#3a3a48');
+        box(1.6, 1.6, 4.8, 4.8, '#6a6a88');
+        box(1.6, 1.6, 4.8, 0.5, '#9a9ab8');
+        return true;
+      case 'spikes':
+        box(0.6, 6.2, 6.8, 1.2, '#3a3630');
+        for (let k = 0; k < 3; k++) this.poly(c, px, py, [1 + k * 2.2, 6.4, 2.6 + k * 2.2, 6.4, 1.8 + k * 2.2, 1.2], '#d8dce8');
+        return true;
       case 'lever':
         box(2.5, 5.6, 3, 1.4, '#6a6a70');
         this.poly(c, px, py, b.open ? [3.7, 5.8, 4.3, 5.8, 6, 1.8, 5.4, 1.6] : [3.7, 5.8, 4.3, 5.8, 2.6, 1.6, 2, 1.8], '#d8d8d8');

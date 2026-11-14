@@ -69,7 +69,7 @@ const TOOLS: Record<string, Tool[]> = {
 const MENUS: [string, string][] = [['Structure', 'structure'], ['Furniture', 'furniture'], ['Workshops', 'production'], ['Machines', 'machines']];
 for (const [name, menu] of MENUS) TOOLS[name] = Object.values(BUILDINGS).filter((b) => b.menu === menu).map((b) => ({ id: 'b_' + b.id, label: b.name, build: b.id, desc: `${b.desc} Needs: ${b.needs.map((n) => `${n.n}× ${Array.isArray(n.type) ? (n.type.length > 4 ? 'melee weapon' : n.type.join('/')) : n.type}`).join(' + ')}.` }));
 /** one-tile buildings that are laid by dragging a line or rectangle */
-const LINES = ['axle', 'fortification', 'weapontrap', 'cagetrap', 'stonetrap'];
+const LINES = ['axle', 'fortification', 'weapontrap', 'cagetrap', 'stonetrap', 'spikes'];
 let cat = '';
 let tool: Tool | null = null;
 let drag: { x: number; y: number; cell: number; pan: boolean; cx: number; cy: number } | null = null;
@@ -272,10 +272,10 @@ canvas.addEventListener('pointerup', (e) => {
   }
   if (linking) {
     const lever = g.buildings.get(linking), t = g.buildingAt(cell);
-    if (lever && t && ['bridge', 'floodgate', 'door', 'gear'].includes(t.type)) {
+    if (lever && t && ['bridge', 'floodgate', 'door', 'gear', 'spikes'].includes(t.type)) {
       lever.links = [...(lever.links || []).filter((i) => i !== t.id), t.id];
       linking = 0;
-    } else flash('Levers link to bridges, floodgates, doors and gear assemblies');
+    } else flash('Levers and pressure plates link to bridges, floodgates, doors, gear assemblies and upright spikes');
     return ui();
   }
   if (cell !== d.cell) {
@@ -598,7 +598,7 @@ function ui() {
 
   // toolbar
   const cats = Object.keys(TOOLS);
-  set('toolbar', `<div class="desc">${tool ? `<b class="amber">${esc(tool.label)}</b> — ${esc(tool.desc)} <span class="sub">(right-click or Esc to stop)</span>` : linking ? 'Click the bridge, floodgate, door or gear assembly this lever should operate.' : ''}</div>
+  set('toolbar', `<div class="desc">${tool ? `<b class="amber">${esc(tool.label)}</b> — ${esc(tool.desc)} <span class="sub">(right-click or Esc to stop)</span>` : linking ? 'Click the bridge, floodgate, door, gear assembly or spikes this should operate.' : ''}</div>
     <div class="tools">${cat ? TOOLS[cat].map((t) => b(t.label, 'tool', t.id, tool?.id === t.id, esc(t.desc))).join('') : ''}</div>
     <div class="cats">${cats.map((c) => b(c, 'cat', c, cat === c)).join('')}</div>`);
 

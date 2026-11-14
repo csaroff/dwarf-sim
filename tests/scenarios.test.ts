@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { MAT, PLANT, T, TICKS_DAY, TICKS_YEAR } from '../src/sim/defs';
+import { BUILDINGS, MAT, PLANT, T, TICKS_DAY, TICKS_YEAR } from '../src/sim/defs';
 import { beast, beginMood, computeAlerts, raid, trade } from '../src/sim/events';
 import { Game, MOON_DAYS } from '../src/sim/game';
 import { birth, issueMandate, maybeMarry, petsAdopt } from '../src/sim/civics';
@@ -1068,6 +1068,74 @@ describe('vampires', () => {
     run(g, 600, () => sleeper.dead);
     expect(vampire.exposed).toBe(true);
     expect(g.log.some((l) => /is a vampire! .* saw it feeding/.test(l.text))).toBe(true);
+  });
+});
+
+describe('levers, plates and spikes', () => {
+  const armed = (g: Game, type: string, x: number, y: number) => {
+    const b = built(g, type, x, y);
+    const spear = g.spawnItem('spear', MAT.steel, cell(x, y));
+    spear.in = b.id;
+    b.mats.push(spear.id);
+    return b;
+  };
+
+  test('pulling a lever drives linked spikes up through whoever stands on them', () => {
+    const g = flatGame();
+    const spikes = armed(g, 'spikes', 50, 50);
+    const lever = built(g, 'lever', 40, 40);
+    lever.links = [spikes.id];
+    const gob = g.addUnit('goblin', cell(50, 50), 'enemy');
+    gob.nextThink = 1e9;
+    toggleLever(g, lever);
+    expect(gob.hp).toBeLessThan(gob.maxHp);
+    expect(g.log.some((l) => /Upright spikes stab the goblin with their steel spear/.test(l.text))).toBe(true);
+    // and again on the next pull: spikes are not used up
+    const hp = gob.hp;
+    toggleLever(g, lever);
+    expect(gob.dead || gob.hp < hp).toBe(true);
+  });
+
+  test('a pressure plate is a lever the enemy pulls: stepping on it locks the door ahead', () => {
+    const g = flatGame();
+    const bait = dwarf(g, 55, 40, []);
+    bait.nextThink = 1e9;
+    // a dead-end corridor with a plate, and further on a door across it: the door is the only way to the dwarf
+    for (let x = 30; x < 60; x++) for (const y of [39, 41]) g.w.setTile(cell(x, y), T.Wall, MAT.granite);
+    g.w.setTile(cell(60, 40), T.Wall, MAT.granite);
+    const door = built(g, 'door', 50, 40);
+    const plate = built(g, 'plate', 44, 40);
+    plate.links = [door.id];
+    g.addUnit('goblin', cell(36, 40), 'enemy');
+
+    const gob = Array.from(g.units.values()).find((u) => u.kind === 'goblin')!;
+    run(g, 300, () => !!door.locked);
+    expect(door.locked).toBe(true);
+    expect(g.log.some((l) => /The goblin steps on a pressure plate/.test(l.text))).toBe(true);
+    // the way in is shut in its face
+    expect(g.w.canReach(g.cellOf(gob), g.cellOf(bait), true)).toBe(false);
+    expect(bait.hp).toBe(bait.maxHp);
+
+    // a plate is a toggle, like a lever: a second step undoes the first (and its description says so)
+    plate.trippedAt = -999;
+    g.moveUnit(gob, cell(43, 40));
+    gob.path = [cell(44, 40)];
+    gob.nextThink = 1e9;
+    run(g, 40, () => !door.locked);
+    expect(door.locked).toBe(false);
+    expect(BUILDINGS.plate.desc).toMatch(/second step undoes the first/);
+  });
+
+  test('your own dwarves walk over a plate without setting it off', () => {
+    const g = flatGame();
+    const u = dwarf(g, 40, 40, []);
+    const door = built(g, 'door', 60, 60);
+    const plate = built(g, 'plate', 44, 40);
+    plate.links = [door.id];
+    order(g, u, optionsAt(g, u, cell(48, 40)).find((o) => o.label === 'Go here')!);
+    run(g, 300, () => g.cellOf(u) === cell(48, 40));
+    expect(g.cellOf(u)).toBe(cell(48, 40));
+    expect(door.locked).toBeFalsy();
   });
 });
 

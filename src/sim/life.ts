@@ -4,9 +4,9 @@ import { maybeMarry, mourn, petsOf, quartersProblem } from './civics';
 import { Game, MOON_TICKS } from './game';
 import {
   RUN, assign, canWalk, endJob, explainTask, findWork, hook, isJob, moveDelay, roomQuality, needsFeeding, needsRest, needsTending, runJob, tryDrink, tryEat, tryRescue, tryRest,
-  tryDress, trySleep, tryTame, tryTend, tryTend2, tryTrain, untameable, walk,
+  toggleLever, tryDress, trySleep, tryTame, tryTend, tryTend2, tryTrain, untameable, walk,
 } from './jobs';
-import type { Item, Job, Unit, Wound } from './types';
+import type { Building, Item, Job, Unit, Wound } from './types';
 import { DIRS8, X, Y, Z, cheb, dist, idx, inMap } from './world';
 
 export const HUNGER_RATE = 100 / (TICKS_DAY * 3);
@@ -969,6 +969,18 @@ function nearestEdge(g: Game, u: Unit): number {
   }
   return best;
 }
+/** The weapon built into a trap (or a row of spikes) strikes a unit. */
+export function trapStrike(g: Game, b: Building, u: Unit, what: string) {
+  const wpn = b.mats.map((id) => g.items.get(id)).find((it) => it && ITEMS[it.type].weapon);
+  if (!wpn || u.dead || u.kind === 'ghost') return;
+  const wd = ITEMS[wpn.type].weapon!;
+  const dmg = wd.dmg * (MATS[wpn.mat].weapon ?? 0.7) * (1 + wpn.q * 0.1) * (1.2 + g.rng.next() * 0.8);
+  u.hp -= dmg;
+  addWound(g, u, g.rng.pick([1, 1, 2, 5, 6, 3, 4]), dmg > u.maxHp * 0.3 ? 2 : 1, wd.type);
+  const name = u.isDwarf ? u.name : g.unitName(u);
+  g.say(`${what} ${what.endsWith('s') ? wd.verb.replace(/e?s$/, '') : wd.verb} ${name} with ${what.endsWith('s') ? 'their' : 'its'} ${g.itemName(wpn, true)}!`, u.faction === 'fort' ? 'bad' : 'good', g.cellOf(u));
+  if (u.hp <= 0) killUnit(g, u, what.endsWith('s') ? 'been impaled on upright spikes' : 'been cut down by a weapon trap');
+}
 function checkTrap(g: Game, u: Unit, cageOnly = false) {
   const b = g.buildingAt(g.cellOf(u));
   if (!b || !b.built || (cageOnly && b.type !== 'cagetrap')) return;
@@ -980,15 +992,13 @@ function checkTrap(g: Game, u: Unit, cageOnly = false) {
     u.job = null;
     g.say(`${cap(g.unitName(u))} has been caught in a cage trap!`, 'good', g.cellOf(u));
     g.w.version++;
-  } else if (b.type === 'weapontrap') {
-    const wpn = b.mats.map((id) => g.items.get(id)).find((it) => it && ITEMS[it.type].weapon);
-    if (!wpn) return;
-    const wd = ITEMS[wpn.type].weapon!;
-    const dmg = wd.dmg * (MATS[wpn.mat].weapon ?? 0.7) * (1 + wpn.q * 0.1) * (1.2 + g.rng.next() * 0.8);
-    u.hp -= dmg;
-    addWound(g, u, g.rng.pick([1, 1, 2, 5, 6, 3, 4]), dmg > u.maxHp * 0.3 ? 2 : 1, wd.type);
-    g.say(`A weapon trap ${wd.verb} ${g.unitName(u)} with its ${g.itemName(wpn, true)}!`, 'good', g.cellOf(u));
-    if (u.hp <= 0) killUnit(g, u, 'been cut down by a weapon trap');
+  } else if (b.type === 'weapontrap') trapStrike(g, b, u, 'A weapon trap');
+  else if (b.type === 'plate') {
+    // an enemy's foot does what a dwarf's hand does to a lever (with a moment to reset)
+    if (g.tick - (b.trippedAt ?? -999) < 40) return;
+    b.trippedAt = g.tick;
+    g.say(`${cap(g.unitName(u))} steps on a pressure plate.`, 'info', g.cellOf(u));
+    toggleLever(g, b);
   } else if (b.type === 'stonetrap') {
     const dmg = 22 + g.rng.int(20);
     u.hp -= dmg;
@@ -1354,4 +1364,4 @@ export function explainUnit(g: Game, u: Unit): Explain {
   return e;
 }
 
-hook({ fallDamage, killUnit, attack, engage: chase });
+hook({ fallDamage, killUnit, attack, engage: chase, trapStrike });

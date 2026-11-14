@@ -226,11 +226,14 @@ function collapse(g: Game, chunk: number[]) {
 export let fallDamage: (g: Game, u: Unit, dz: number) => void = () => {};
 export let killUnit: (g: Game, u: Unit, cause: string, by?: Unit) => void = () => {};
 export let attack: (g: Game, a: Unit, b: Unit) => void = () => {};
+/** the weapon built into a trap strikes a unit */
+export let trapStrike: (g: Game, b: Building, u: Unit, what: string) => void = () => {};
 /** close with a target and attack it, shooting instead when armed for it; false = cannot get to it */
 export let engage: (g: Game, a: Unit, b: Unit) => boolean = () => false;
 /** life.ts plugs its functions in here (avoids a circular import). */
-export function hook(f: { fallDamage: typeof fallDamage; killUnit: typeof killUnit; attack: typeof attack; engage: typeof engage }) {
+export function hook(f: { fallDamage: typeof fallDamage; killUnit: typeof killUnit; attack: typeof attack; engage: typeof engage; trapStrike: typeof trapStrike }) {
   engage = f.engage;
+  trapStrike = f.trapStrike;
   fallDamage = f.fallDamage;
   killUnit = f.killUnit;
   attack = f.attack;
@@ -996,12 +999,17 @@ export function toggleLever(g: Game, lever: Building) {
   lever.open = !lever.open;
   lever.pull = false;
   if (!lever.links || !lever.links.length) {
-    g.say('The lever is pulled. Nothing happens: it is not linked to anything.', 'info', g.center(lever));
+    g.say(`${lever.type === 'plate' ? 'A pressure plate clicks' : 'The lever is pulled'}. Nothing happens: it is not linked to anything.`, 'info', g.center(lever));
     return;
   }
   for (const id of lever.links) {
     const b = g.buildings.get(id);
     if (!b || !b.built) continue;
+    if (b.type === 'spikes') {
+      // up through whoever is standing there, whoever they are
+      for (const c of g.cellsOf(b)) for (const o of g.unitsIn(c)) trapStrike(g, b, o, 'Upright spikes');
+      continue;
+    }
     if (b.type === 'door') b.locked = !b.locked;
     else {
       b.open = !b.open;
