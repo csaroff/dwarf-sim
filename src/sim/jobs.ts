@@ -381,6 +381,7 @@ export function moveDelay(g: Game, u: Unit): number {
  * adjacent: stop next to the target. selfOk: standing on the target itself also counts.
  */
 export function walk(g: Game, u: Unit, target: number, adjacent = false, selfOk = true, brave = false): 'there' | 'going' | 'blocked' {
+  if ((u.webbedUntil || 0) > g.tick) return 'going'; // stuck in webs
   const key = target * 4 + (adjacent ? 1 : 0) + (selfOk ? 0 : 2);
   const here = idx(u.x, u.y, u.z);
   if (!u.path || u.pathGoal !== key) {

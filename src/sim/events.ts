@@ -202,17 +202,46 @@ function thief(g: Game) {
   const u = g.addUnit('kobold', g.randomEdgeCell(), 'enemy');
   u.leaveAt = g.tick + TICKS_DAY * 3;
 }
-function beast(g: Game) {
+const BEAST_FORMS: [string, string][] = [
+  ['towering eyeless lizard', 'croc'], ['great three-headed toad', 'blob'], ['enormous blob', 'blob'], ['huge skinless bat', 'bird'], ['gigantic one-eyed crab', 'spider'],
+  ['colossal feathered serpent', 'snake'], ['vast hairy spider', 'spider'], ['monstrous winged wolf', 'were'], ['mountainous shelled ox', 'elephant'], ['immense horned worm', 'snake'],
+  ['hulking three-eyed bear', 'bear'], ['enormous quadruped with wings', 'dragon'],
+];
+/** what it is made of: [name, colour, armor, hit point multiplier] */
+const BEAST_STUFF: [string, string, number, number][] = [
+  ['flesh', '#d06060', 2, 1], ['ash', '#909090', 0, 0.6], ['salt', '#f0f0f0', 1, 0.7], ['green glass', '#70d090', 5, 0.8], ['iron', '#b8bcc8', 7, 1.1], ['vomit', '#a0b040', 0, 0.6],
+  ['snow', '#e0f0ff', 0, 0.5], ['amber', '#ffb030', 4, 0.9], ['steam', '#c0d0e0', 0, 0.5], ['granite', '#b9b0ac', 6, 1.2], ['coal', '#505050', 3, 0.9],
+];
+const BEAST_POWERS: [string, Unit['breath'] | null][] = [
+  ['Beware its deadly dust!', { dmg: 5, range: 5, verb: 'breathes a cloud of dust over', type: 'dust' }],
+  ['Beware its webs!', { dmg: 0, range: 6, verb: 'sprays webs over', type: 'web' }],
+  ['Beware its fiery breath!', { dmg: 16, range: 6, verb: 'breathes fire on', type: 'burn' }],
+  ['Beware its poisonous bite!', null],
+  ['It knows nothing but hunger.', undefined],
+];
+/** Every forgotten beast is one of a kind: a random body, made of a random substance, with a random power. */
+export function beast(g: Game, at?: number): Unit | null {
   g.ev.nextBeast = g.tick + TICKS_DAY * (50 + g.rng.int(40));
-  if (!g.ev.cavern || g.dwarves().length < 12) return;
-  const c = cavernCell(g, g.ev.cavern >= 2 ? CAVERN2_Z : CAVERN1_Z);
-  if (c < 0) return;
+  if (at === undefined && (!g.ev.cavern || g.dwarves().length < 12)) return null;
+  const c = at ?? cavernCell(g, g.ev.cavern >= 2 ? CAVERN2_Z : CAVERN1_Z);
+  if (c < 0) return null;
   const u = g.addUnit('beast', c, 'enemy');
   // it prowls the cavern it woke in, and comes up after the fortress only once that is big enough to draw it
   if (g.dwarves().length < 25) u.home = c;
-  const forms = ['towering eyeless lizard', 'great three-headed toad', 'enormous blob of ash', 'huge skinless bat', 'gigantic one-eyed crab'];
-  u.name = `${g.rng.pick(['Osplu', 'Ngathsesh', 'Zuspo', 'Thrak', 'Olngo'])} ${g.rng.pick(['Wraithfang', 'the Cinder of Ends', 'Rotmaw', 'Doomgrasp'])}`;
-  g.say(`The Forgotten Beast ${u.name} has come! A ${g.rng.pick(forms)}. It has ${g.rng.pick(['a gaunt appearance', 'emerald scales', 'lidless eyes'])}. Beware its ${g.rng.pick(['deadly dust', 'webs', 'poisonous bite'])}!`, 'death', c, true);
+  const [form, shape] = g.rng.pick(BEAST_FORMS);
+  const [stuff, colour, armor, hpMul] = g.rng.pick(BEAST_STUFF);
+  const [warning, breath] = g.rng.pick(BEAST_POWERS);
+  const feature = g.rng.pick(['a gaunt appearance', 'emerald scales', 'lidless eyes', 'a bloated body', 'long curling horns', 'a regal bearing', 'thin wings of stretched skin', 'a pair of knobby antennae']);
+  u.name = `${g.rng.pick(['Osplu', 'Ngathsesh', 'Zuspo', 'Thrak', 'Olngo', 'Asob', 'Ithra', 'Umoz'])} ${g.rng.pick(['Wraithfang', 'the Cinder of Ends', 'Rotmaw', 'Doomgrasp', 'the Night of Sorrows', 'Plaguehowl'])}`;
+  u.shape = shape;
+  u.fg = colour;
+  u.armor = armor;
+  u.maxHp = u.hp = Math.round(u.maxHp * hpMul);
+  if (breath) u.breath = breath;
+  else if (breath === null) u.venom = true;
+  u.desc = `A ${form} composed of ${stuff}. It has ${feature}. ${warning}${armor >= 5 ? ' Blades glance off it: use picks, hammers or traps.' : armor === 0 ? ' It is fragile for its size.' : ''}`;
+  g.say(`The Forgotten Beast ${u.name} has come! ${u.desc}`, 'death', c, true);
+  return u;
 }
 function hell(g: Game, cell: number) {
   if (g.ev.hell) return;

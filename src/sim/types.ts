@@ -140,6 +140,15 @@ export interface Unit {
   owner?: number; // pets
   cagedIn?: number; // building id
   chaseAt?: number; // cell the current chase path leads to
+  // ---- one-of-a-kind creatures (forgotten beasts) override what their kind says
+  shape?: string; // sprite
+  desc?: string; // what it looks like
+  armor?: number;
+  venom?: boolean; // its bite sickens
+  breath?: { dmg: number; range: number; verb: string; type: 'pierce' | 'burn' | 'web' | 'dust' };
+  // ---- afflictions
+  sickUntil?: number; // poisoned: loses health until this tick
+  webbedUntil?: number; // stuck in webs: cannot move until this tick
   carriedBy?: number; // unit id of the doctor carrying this unit
 }
 

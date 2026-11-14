@@ -351,7 +351,8 @@ export interface CreatureDef {
   flies?: boolean;
   thief?: boolean; // snatches an item and runs
   undead?: boolean; // feels no pain, never flees or bleeds out
-  ranged?: { dmg: number; range: number; verb: string; type: 'pierce' | 'burn' };
+  ranged?: { dmg: number; range: number; verb: string; type: 'pierce' | 'burn' | 'web' | 'dust' };
+  venom?: boolean; // a wounding bite sickens the victim
   eggs?: boolean;
   milk?: boolean;
   wool?: boolean;
@@ -421,11 +422,11 @@ const CLIST: CreatureDef[] = [
   cr('troglodyte', 'troglodyte', 't', '#a09070', 'goblin', 0.8, 6, 5, 'bites', 'edge', 2, { hostile: true, where: 'cavern', danger: 1 }),
   cr('molemarian', 'molemarian', 'm', '#b08080', 'goblin', 0.9, 6, 6, 'claws', 'edge', 2, { hostile: true, where: 'cavern', danger: 2, freq: 0.7 }),
   cr('reacher', 'reacher', 'r', '#d0d0a0', 'goblin', 1.1, 5, 6, 'grabs', 'blunt', 3, { hostile: true, where: 'cavern', danger: 2, freq: 0.7 }),
-  cr('helmet_snake', 'helmet snake', 's', '#60c080', 'snake', 0.5, 5, 6, 'bites', 'pierce', 3, { predator: true, where: 'cavern', danger: 1, meat: 2 }),
+  cr('helmet_snake', 'helmet snake', 's', '#60c080', 'snake', 0.5, 5, 6, 'bites', 'pierce', 3, { predator: true, where: 'cavern', danger: 1, meat: 2, venom: true }),
   cr('cave_toad', 'giant cave toad', 'T', '#70a050', 'blob', 1.8, 6, 7, 'bites', 'blunt', 2, { predator: true, where: 'cavern', danger: 2, meat: 6, freq: 0.7 }),
   cr('cave_croc', 'cave crocodile', 'C', '#60a060', 'croc', 2.5, 7, 11, 'bites', 'edge', 3, { predator: true, meat: 10, where: 'cavern', danger: 2 }),
   cr('cave_bear', 'blind cave bear', 'B', '#d0c0b0', 'bear', 2.4, 5, 10, 'mauls', 'edge', 4, { predator: true, meat: 9, where: 'cavern', danger: 2, freq: 0.6 }),
-  cr('spider', 'giant cave spider', 'S', '#c050c0', 'spider', 3, 4, 13, 'bites', 'pierce', 6, { hostile: true, where: 'cavern', meat: 4, danger: 3, freq: 0.4 }),
+  cr('spider', 'giant cave spider', 'S', '#c050c0', 'spider', 3, 4, 13, 'bites', 'pierce', 6, { hostile: true, where: 'cavern', meat: 4, danger: 3, freq: 0.4, venom: true, ranged: { dmg: 0, range: 5, verb: 'shoots a web over', type: 'web' } }),
   cr('rutherer', 'rutherer', 'R', '#c08040', 'bear', 3, 5, 12, 'gores', 'pierce', 4, { hostile: true, where: 'cavern', danger: 3, freq: 0.4, meat: 9 }),
   cr('jabberer', 'jabberer', 'J', '#e0b040', 'fowl', 4, 4, 12, 'pecks', 'pierce', 4, { predator: true, where: 'cavern', danger: 3, freq: 0.4, meat: 14, eggs: true }),
   cr('crawler', 'voracious cave crawler', 'C', '#b06060', 'snake', 2.5, 5, 11, 'bites', 'edge', 4, { hostile: true, where: 'cavern', danger: 3, freq: 0.4 }),

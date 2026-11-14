@@ -80,7 +80,9 @@ function spriteOf(u: Unit): { map: string[]; pal: Record<string, string> } {
     const skin = dfg;
     return { map: SPRITES.goblin, pal: { H: shade(skin, 0.35), S: skin, E: u.kind === 'kobold' ? '#201810' : '#ff3020', C: shade(skin, 0.45), L: shade(skin, 0.3) } };
   }
-  return { map: SPRITES[d.shape] || SPRITES.critter, pal: { B: dfg, D: shade(dfg, 0.62), L: shade(dfg, 0.45), E: d.shape === 'ghost' ? '#203050' : '#101010', N: '#201810', H: '#f0e8d0', W: '#f0f0f0', Y: '#f0c030', R: '#e03030' } };
+  // one-of-a-kind creatures bring their own shape and colour
+  const body = u.shape ? fg : dfg;
+  return { map: SPRITES[u.shape || d.shape] || SPRITES.critter, pal: { B: body, D: shade(body, 0.62), L: shade(body, 0.45), E: d.shape === 'ghost' ? '#203050' : '#101010', N: '#201810', H: '#f0e8d0', W: '#f0f0f0', Y: '#f0c030', R: '#e03030' } };
 }
 
 export interface Overlay {

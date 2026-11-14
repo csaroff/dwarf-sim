@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { MAT, PLANT, T, TICKS_DAY } from '../src/sim/defs';
-import { beginMood, computeAlerts, trade } from '../src/sim/events';
+import { beast, beginMood, computeAlerts, trade } from '../src/sim/events';
 import { Game, MOON_DAYS } from '../src/sim/game';
 import { issueMandate } from '../src/sim/civics';
 import { megabeast, necroSiege, werebeast } from '../src/sim/night';
@@ -927,6 +927,43 @@ describe('livestock', () => {
     hen.nextThink = 1e9;
     run(g, TICKS_DAY * 4, () => g.count((i) => i.type === 'egg') > 0);
     expect(g.count((i) => i.type === 'egg')).toBeGreaterThan(0);
+  });
+});
+
+describe('forgotten beasts are one of a kind', () => {
+  test('each has its own body, substance and power, described on arrival and in its panel', () => {
+    const g = flatGame();
+    const seen = new Set<string>();
+    for (let k = 0; k < 6; k++) {
+      const b = beast(g, cell(20 + k * 8, 20))!;
+      expect(b.desc).toMatch(/^A .+ composed of .+\. It has .+\./);
+      expect(explainUnit(g, b).lines).toContain(b.desc);
+      seen.add(b.desc!);
+    }
+    expect(seen.size).toBeGreaterThanOrEqual(5);
+    expect(g.attention?.text).toMatch(/The Forgotten Beast .+ has come! A /);
+  });
+
+  test('webs hold a dwarf fast; deadly dust sickens, and the panel says for how long', () => {
+    const g = flatGame();
+    const u = dwarf(g, 40, 40, []);
+    const spinner = g.addUnit('beast', cell(45, 40), 'enemy');
+    spinner.breath = { dmg: 0, range: 6, verb: 'sprays webs over', type: 'web' };
+    spinner.nextThink = 0;
+    run(g, 200, () => (u.webbedUntil || 0) > g.tick);
+    expect(u.webbedUntil).toBeGreaterThan(g.tick);
+    expect(explainUnit(g, u).lines.join(' ')).toMatch(/Stuck fast in webs/);
+
+    const g2 = flatGame();
+    const v = dwarf(g2, 40, 40, []);
+    const duster = g2.addUnit('beast', cell(45, 40), 'enemy');
+    duster.breath = { dmg: 1, range: 6, verb: 'breathes a cloud of dust over', type: 'dust' };
+    // a moat keeps it from simply eating him
+    for (let y = 0; y < 96; y++) for (let x = 42; x <= 43; x++) g2.w.setTile(cell(x, y), T.Open);
+    v.nextThink = 1e9;
+    run(g2, 400, () => (v.sickUntil || 0) > g2.tick);
+    expect(explainUnit(g2, v).lines.join(' ')).toMatch(/Poisoned: losing health .* It passes on its own/);
+    expect(g2.log.some((l) => /has been sickened by .*deadly dust/.test(l.text))).toBe(true);
   });
 });
 
