@@ -989,6 +989,40 @@ describe('vampires', () => {
   });
 });
 
+describe('building destroyers', () => {
+  // a walled room with one locked door, a dwarf inside, and something outside that wants in
+  const sealedRoom = () => {
+    const g = flatGame();
+    for (let y = 40; y <= 44; y++) for (let x = 40; x <= 44; x++) if (x === 40 || x === 44 || y === 40 || y === 44) g.w.setTile(cell(x, y), T.Wall, MAT.granite);
+    g.w.setTile(cell(42, 44), T.Floor, MAT.granite);
+    const door = built(g, 'door', 42, 44);
+    door.locked = true;
+    g.applyBlock(door);
+    const u = dwarf(g, 42, 42, []);
+    u.nextThink = 1e9;
+    return { g, door, u };
+  };
+
+  test('a locked door keeps goblins out', () => {
+    const { g, u } = sealedRoom();
+    g.addUnit('goblin', cell(42, 50), 'enemy');
+    run(g, 800);
+    expect(g.buildingAt(cell(42, 44))?.type).toBe('door');
+    expect(u.hp).toBe(u.maxHp);
+  });
+
+  test('a troll breaks it down and comes in, and its panel warned that it would', () => {
+    const { g, u } = sealedRoom();
+    const troll = g.addUnit('troll', cell(42, 50), 'enemy');
+    expect(explainUnit(g, troll).lines.join(' ')).toMatch(/Building destroyer: a locked door will not hold it for long/);
+    run(g, 1500, () => !g.buildingAt(cell(42, 44)));
+    expect(g.buildingAt(cell(42, 44))).toBeUndefined();
+    expect(g.attention?.text).toMatch(/The troll smashes the .*door to pieces/);
+    run(g, 600, () => u.dead || u.hp < u.maxHp);
+    expect(u.dead || u.hp < u.maxHp).toBe(true);
+  });
+});
+
 describe('fortress defences', () => {
   test('a weapon trap strikes every raider that crosses it, and keeps working', () => {
     const g = flatGame();

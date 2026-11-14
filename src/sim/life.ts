@@ -1012,10 +1012,40 @@ function hostileTick(g: Game, u: Unit) {
     if (t && lair >= 0 && dist(g.cellOf(t), lair) > TERRITORY) t = null;
     u.target = t ? t.id : 0;
     if (!t && lair >= 0 && dist(g.cellOf(u), lair) > 6) u.path = g.w.findPath(g.cellOf(u), lair, false) || u.path; // back to the lair
-    if (!t && (!u.path || !u.path.length)) {
+    // a building destroyer with nobody to get at goes for the nearest locked door instead
+    if (!t && lair < 0 && CREATURES[u.kind].smasher && !u.isDwarf) {
+      const here = g.cellOf(u);
+      let door = g.buildings.get(u.smash || 0);
+      if (!door || !door.locked) {
+        door = undefined;
+        let bd = 1e9;
+        for (const b of g.buildings.values()) {
+          if (b.type !== 'door' || !b.built || !b.locked) continue;
+          const d = dist(here, g.center(b));
+          if (d < bd && g.w.canReach(here, g.center(b), true, false)) {
+            door = b;
+            bd = d;
+          }
+        }
+        u.smash = door ? door.id : 0;
+      }
+      if (door && (!u.path || !u.path.length)) u.path = g.w.findPath(here, g.center(door), true, false, false);
+    } else u.smash = 0;
+    if (!t && !u.smash && (!u.path || !u.path.length)) {
       const c = g.randomNear(u.home ?? g.cellOf(u), 6);
       u.path = g.w.findPath(g.cellOf(u), c, false);
     }
+  }
+  const door = g.buildings.get(u.smash || 0);
+  if (door && !u.target && u.z === door.z && cheb(g.cellOf(u), g.center(door)) <= 1) {
+    // it takes a little while, and then the door is gone for good
+    if (g.rng.chance(0.03)) {
+      g.say(`${cap(g.unitName(u))} smashes the ${g.buildingName(door).toLowerCase()} to pieces!`, 'bad', g.center(door), true);
+      g.removeBuilding(door, false);
+      u.smash = 0;
+      u.nextThink = 0;
+    }
+    return;
   }
   const t = g.units.get(u.target);
   const before = g.cellOf(u);
@@ -1198,6 +1228,7 @@ export function explainUnit(g: Game, u: Unit): Explain {
     }
     if (u.kind === 'necromancer') e.lines.push('Raises any corpse it can see as a zombie. Kill it and everything it raised collapses: marksdwarves are ideal. Bury your dead before it gets to them.');
     if (u.desc) e.lines.push(u.desc);
+    if (CREATURES[u.kind].smasher && u.faction === 'enemy') e.lines.push(u.smash ? 'Building destroyer: breaking down a locked door to get at your dwarves.' : 'Building destroyer: a locked door will not hold it for long. Walls, raised drawbridges and traps will.');
     if (u.kind === 'werebeast') e.lines.push('Any dwarf it wounds is cursed, and will transform at every full moon. It leaves when the moon sets.');
     if (u.state === 'caged' && u.faction !== 'fort') {
       e.status = 'Caged';

@@ -124,6 +124,7 @@ export interface Unit {
   exposed?: boolean; // known to the fortress as a vampire
   feedAt?: number; // tick the vampire next goes looking for a sleeper
   raised?: boolean; // zombie raised by a necromancer
+  smash?: number; // building id a building destroyer is on its way to break
   stateUntil: number;
   moodNeeds?: { type: string; kind?: string; have: boolean }[]; // strange mood
   moodShop?: number;

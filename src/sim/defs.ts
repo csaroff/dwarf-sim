@@ -350,6 +350,7 @@ export interface CreatureDef {
   armor?: number;
   flies?: boolean;
   thief?: boolean; // snatches an item and runs
+  smasher?: boolean; // building destroyer: breaks down locked doors to get at you
   undead?: boolean; // feels no pain, never flees or bleeds out
   ranged?: { dmg: number; range: number; verb: string; type: 'pierce' | 'burn' | 'web' | 'dust' };
   venom?: boolean; // a wounding bite sickens the victim
@@ -405,8 +406,8 @@ const CLIST: CreatureDef[] = [
   // ---- invaders
   cr('goblin', 'goblin', 'g', '#60e040', 'goblin', 0.9, 6, 5, 'strikes', 'blunt', 3, { hostile: true }),
   cr('kobold', 'kobold thief', 'k', '#e0a060', 'goblin', 0.4, 4, 2, 'stabs', 'pierce', 1, { hostile: true, thief: true }),
-  cr('troll', 'troll', 'T', '#60a0a0', 'goblin', 4, 7, 13, 'smashes', 'blunt', 3, { hostile: true, where: 'cavern', danger: 3, freq: 0.4 }),
-  cr('ogre', 'ogre', 'O', '#c0a060', 'goblin', 5, 7, 15, 'clubs', 'blunt', 3, { hostile: true }),
+  cr('troll', 'troll', 'T', '#60a0a0', 'goblin', 4, 7, 13, 'smashes', 'blunt', 3, { smasher: true, hostile: true, where: 'cavern', danger: 3, freq: 0.4 }),
+  cr('ogre', 'ogre', 'O', '#c0a060', 'goblin', 5, 7, 15, 'clubs', 'blunt', 3, { smasher: true, hostile: true }),
   // ---- cavern life
   cr('crundle', 'crundle', 'c', '#e06060', 'critter', 0.3, 5, 3, 'kicks', 'blunt', 1, { hostile: true, meat: 1, where: 'cavern', freq: 3, danger: 1 }),
   cr('giant_rat', 'giant rat', 'r', '#907060', 'critter', 0.4, 4, 3, 'bites', 'edge', 1, { meat: 1, where: 'cavern', freq: 2 }),
@@ -430,22 +431,22 @@ const CLIST: CreatureDef[] = [
   cr('rutherer', 'rutherer', 'R', '#c08040', 'bear', 3, 5, 12, 'gores', 'pierce', 4, { hostile: true, where: 'cavern', danger: 3, freq: 0.4, meat: 9 }),
   cr('jabberer', 'jabberer', 'J', '#e0b040', 'fowl', 4, 4, 12, 'pecks', 'pierce', 4, { predator: true, where: 'cavern', danger: 3, freq: 0.4, meat: 14, eggs: true }),
   cr('crawler', 'voracious cave crawler', 'C', '#b06060', 'snake', 2.5, 5, 11, 'bites', 'edge', 4, { hostile: true, where: 'cavern', danger: 3, freq: 0.4 }),
-  cr('cave_ogre', 'blind cave ogre', 'O', '#d0d0c0', 'goblin', 5, 6, 16, 'smashes', 'blunt', 4, { hostile: true, where: 'cavern', danger: 3, freq: 0.3 }),
-  cr('cave_dragon', 'cave dragon', 'D', '#80a0c0', 'dragon', 8, 5, 18, 'bites', 'edge', 6, { hostile: true, where: 'cavern', danger: 4, freq: 0.1, armor: 2, meat: 30 }),
+  cr('cave_ogre', 'blind cave ogre', 'O', '#d0d0c0', 'goblin', 5, 6, 16, 'smashes', 'blunt', 4, { smasher: true, hostile: true, where: 'cavern', danger: 3, freq: 0.3 }),
+  cr('cave_dragon', 'cave dragon', 'D', '#80a0c0', 'dragon', 8, 5, 18, 'bites', 'edge', 6, { smasher: true, hostile: true, where: 'cavern', danger: 4, freq: 0.1, armor: 2, meat: 30 }),
   cr('olm', 'giant olm', 'o', '#f0d0d0', 'fish', 0.8, 5, 5, 'bites', 'edge', 2, { predator: true, water: true, where: 'cavern', meat: 3 }),
   // ---- things that live in the heat
   cr('fire_imp', 'fire imp', 'i', '#ff8020', 'goblin', 0.4, 4, 4, 'claws', 'edge', 3, { hostile: true, where: 'magma', ranged: { dmg: 10, range: 6, verb: 'hurls a fireball at', type: 'burn' } }),
   cr('magma_crab', 'magma crab', 'c', '#ff5030', 'spider', 0.8, 6, 6, 'pinches', 'edge', 3, { hostile: true, where: 'magma', armor: 2, ranged: { dmg: 9, range: 5, verb: 'spits molten rock at', type: 'burn' } }),
   // ---- megabeasts
-  cr('dragon', 'dragon', 'D', '#ff4020', 'dragon', 13, 5, 26, 'bites', 'edge', 9, { hostile: true, where: 'mega', armor: 4, meat: 60, ranged: { dmg: 22, range: 7, verb: 'breathes fire on', type: 'burn' } }),
-  cr('hydra', 'hydra', 'H', '#40c060', 'dragon', 12, 6, 20, 'bites', 'edge', 8, { hostile: true, where: 'mega', armor: 2, meat: 50 }),
-  cr('colossus', 'bronze colossus', 'C', '#d8a040', 'goblin', 14, 8, 28, 'crushes', 'blunt', 8, { hostile: true, where: 'mega', armor: 7 }),
+  cr('dragon', 'dragon', 'D', '#ff4020', 'dragon', 13, 5, 26, 'bites', 'edge', 9, { smasher: true, hostile: true, where: 'mega', armor: 4, meat: 60, ranged: { dmg: 22, range: 7, verb: 'breathes fire on', type: 'burn' } }),
+  cr('hydra', 'hydra', 'H', '#40c060', 'dragon', 12, 6, 20, 'bites', 'edge', 8, { smasher: true, hostile: true, where: 'mega', armor: 2, meat: 50 }),
+  cr('colossus', 'bronze colossus', 'C', '#d8a040', 'goblin', 14, 8, 28, 'crushes', 'blunt', 8, { smasher: true, hostile: true, where: 'mega', armor: 7 }),
   cr('roc', 'roc', 'R', '#e0c080', 'bird', 11, 3, 20, 'claws', 'edge', 7, { hostile: true, where: 'mega', flies: true, armor: 1, meat: 40 }),
-  cr('giant', 'giant', 'G', '#e0b090', 'goblin', 9, 6, 20, 'stomps', 'blunt', 6, { hostile: true, where: 'mega', armor: 1 }),
-  cr('cyclops', 'cyclops', 'C', '#c0a080', 'goblin', 8, 6, 18, 'clubs', 'blunt', 6, { hostile: true, where: 'mega', armor: 1 }),
-  cr('ettin', 'ettin', 'E', '#b0a0a0', 'goblin', 8, 6, 17, 'clubs', 'blunt', 6, { hostile: true, where: 'mega', armor: 1 }),
-  cr('minotaur', 'minotaur', 'M', '#a06040', 'were', 5, 5, 16, 'gores', 'pierce', 9, { hostile: true, where: 'mega', armor: 1 }),
-  cr('beast', 'forgotten beast', 'Ω', '#ff40ff', 'blob', 10, 6, 20, 'rends', 'edge', 8, { hostile: true, armor: 3 }),
+  cr('giant', 'giant', 'G', '#e0b090', 'goblin', 9, 6, 20, 'stomps', 'blunt', 6, { smasher: true, hostile: true, where: 'mega', armor: 1 }),
+  cr('cyclops', 'cyclops', 'C', '#c0a080', 'goblin', 8, 6, 18, 'clubs', 'blunt', 6, { smasher: true, hostile: true, where: 'mega', armor: 1 }),
+  cr('ettin', 'ettin', 'E', '#b0a0a0', 'goblin', 8, 6, 17, 'clubs', 'blunt', 6, { smasher: true, hostile: true, where: 'mega', armor: 1 }),
+  cr('minotaur', 'minotaur', 'M', '#a06040', 'were', 5, 5, 16, 'gores', 'pierce', 9, { smasher: true, hostile: true, where: 'mega', armor: 1 }),
+  cr('beast', 'forgotten beast', 'Ω', '#ff40ff', 'blob', 10, 6, 20, 'rends', 'edge', 8, { smasher: true, hostile: true, armor: 3 }),
   cr('demon', 'demon', '&', '#ff3020', 'were', 8, 3, 24, 'tears at', 'edge', 10, { hostile: true, armor: 4, flies: true, ranged: { dmg: 14, range: 6, verb: 'hurls hellfire at', type: 'burn' } }),
   // ---- the night
   cr('werebeast', 'werebeast', 'W', '#c0a060', 'were', 1.8, 4, 9, 'bites', 'edge', 5, { hostile: true }),
