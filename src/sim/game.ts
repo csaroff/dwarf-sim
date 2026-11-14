@@ -447,6 +447,12 @@ export class Game {
     u.likes = r.pick([...PLANTS.filter((p) => p.drink).map((p) => p.drink!), 'granite', 'iron', 'gold', 'cats', 'yaks', 'plump helmets', 'prepared meals', 'obsidian', 'statues']);
     return u;
   }
+  /** how many dwarves can work and fight: what the fortress's enemies size themselves against */
+  strength(): number {
+    let n = 0;
+    for (const u of this.units.values()) if (u.isDwarf && !u.dead && !u.child) n++;
+    return n;
+  }
   dwarves(): Unit[] {
     const out: Unit[] = [];
     for (const u of this.units.values()) if (u.isDwarf && !u.dead) out.push(u);

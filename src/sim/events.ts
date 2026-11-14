@@ -81,7 +81,7 @@ function pickCreature(g: Game, where: CreatureDef['where'], maxDanger: number, o
 function spawnWild(g: Game) {
   // the first weeks are quiet: predators and thieving animals turn up once the fortress has found its feet
   const gentle = g.tick < TICKS_DAY * 18;
-  const d = pickCreature(g, 'surface', gentle ? 0 : g.dwarves().length < 12 ? 1 : 2, (c) => !gentle || !c.thief);
+  const d = pickCreature(g, 'surface', gentle ? 0 : g.strength() < 12 ? 1 : 2, (c) => !gentle || !c.thief);
   const c = g.randomEdgeCell();
   const inland = g.randomNear(c, 12);
   const u = g.addUnit(d.id, inland, 'wild');
@@ -105,7 +105,7 @@ function spawnCavern(g: Game) {
   const c = cavernCell(g, g.ev.cavern >= 2 && g.rng.chance(0.5) ? CAVERN2_Z : CAVERN1_Z);
   if (c < 0) return;
   // the nastier things only take an interest once the fortress is worth their while
-  const pop = g.dwarves().length;
+  const pop = g.strength();
   const d = pickCreature(g, 'cavern', pop >= 25 ? 4 : pop >= 15 ? 3 : pop >= 10 ? 2 : 1, (k) => !k.water);
   const n = d.size < 0.5 ? 2 + g.rng.int(2) : 1;
   for (let i = 0; i < n; i++) {
@@ -179,7 +179,7 @@ function arm(g: Game, u: Unit, tier: number) {
   if (g.rng.chance(tier * 0.25)) g.equip(u, g.spawnItem('mail', tier >= 2 ? mat : MAT.leather, c), 'body');
 }
 export function raid(g: Game, size?: number) {
-  const pop = g.dwarves().length;
+  const pop = g.strength(); // adults: children do not draw a bigger raid
   // the first party is a pair of scouts; later ones grow with the fortress but never outnumber what it could field
   const n = size ?? Math.max(2, Math.min(Math.ceil(pop * 0.4), Math.round(1 + g.ev.raids * 0.8 + pop / 8)));
   const c = g.randomEdgeCell();
@@ -222,12 +222,12 @@ const BEAST_POWERS: [string, Unit['breath'] | null][] = [
 /** Every forgotten beast is one of a kind: a random body, made of a random substance, with a random power. */
 export function beast(g: Game, at?: number): Unit | null {
   g.ev.nextBeast = g.tick + TICKS_DAY * (50 + g.rng.int(40));
-  if (at === undefined && (!g.ev.cavern || g.dwarves().length < 12)) return null;
+  if (at === undefined && (!g.ev.cavern || g.strength() < 12)) return null;
   const c = at ?? cavernCell(g, g.ev.cavern >= 2 ? CAVERN2_Z : CAVERN1_Z);
   if (c < 0) return null;
   const u = g.addUnit('beast', c, 'enemy');
   // it prowls the cavern it woke in, and comes up after the fortress only once that is big enough to draw it
-  if (g.dwarves().length < 25) u.home = c;
+  if (g.strength() < 25) u.home = c;
   const [form, shape] = g.rng.pick(BEAST_FORMS);
   const [stuff, colour, armor, hpMul] = g.rng.pick(BEAST_STUFF);
   const [warning, breath] = g.rng.pick(BEAST_POWERS);
@@ -793,7 +793,7 @@ export function tickEvents(g: Game) {
   if (t >= e.nextRaid) {
     // one disaster at a time: goblins wait their turn while the dead are at the gates
     if (Array.from(g.units.values()).some((u) => u.kind === 'necromancer' || u.kind === 'werebeast' || CREATURES[u.kind].where === 'mega')) e.nextRaid = t + TICKS_DAY * 4;
-    else if (pop >= 9 || g.wealth > 3000) raid(g);
+    else if (g.strength() >= 9 || g.wealth > 3000) raid(g);
     else e.nextRaid = t + TICKS_DAY * 6;
   }
   if (t >= e.nextMood) startMood(g);

@@ -86,9 +86,10 @@ function families(g: Game, ds: Unit[]) {
     }
     const mate = u.spouse ? g.units.get(u.spouse) : undefined;
     if (u.spouse && (!mate || mate.dead)) u.spouse = 0;
-    // married couples, now and then; a fortress only has room for so many
-    if (mate && !mate.dead && u.id < mate.id && ds.length < 60 && !u.state && !mate.state && !u.downSince && !mate.downSince && g.rng.chance(0.012)) {
-      if (ds.filter((o) => o.child && o.parents?.includes(u.id)).length < 3) birth(g, u, mate);
+    // married couples, now and then: about one child a season each, and never more children than a third of the adults
+    if (mate && !mate.dead && u.id < mate.id && ds.length < 60 && !u.state && !mate.state && !u.downSince && !mate.downSince && g.rng.chance(0.004)) {
+      const children = ds.filter((o) => o.child);
+      if (children.length < (ds.length - children.length) / 3 && children.filter((o) => o.parents?.includes(u.id)).length < 2) birth(g, u, mate);
     }
   }
 }

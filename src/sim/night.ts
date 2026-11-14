@@ -117,7 +117,7 @@ export function necroSiege(g: Game, zombies?: number): Unit {
   const necro = g.addUnit('necromancer', c, 'enemy');
   necro.name = `${g.rng.pick(['Ngokang', 'Ushrir', 'Astesh', 'Zefon', 'Imush', 'Thikut'])} ${g.rng.pick(['Gravewhisper', 'the Pale', 'Bonecaller', 'Crypthand'])}`;
   necro.leaveAt = g.tick + TICKS_DAY * 3;
-  const n = zombies ?? Math.max(2, Math.min(4, Math.round(g.dwarves().length / 8)));
+  const n = zombies ?? Math.max(2, Math.min(4, Math.round(g.strength() / 8)));
   const olds = ['goblin', 'elk', 'wolf', 'deer', 'boar', 'troll', 'horse'];
   for (let k = 0; k < n; k++) {
     const kind = g.rng.pick(olds);
@@ -250,7 +250,7 @@ export function tickNight(g: Game) {
   if (!e.nextMega) e.nextMega = t + TICKS_DAY * 110;
   if (t % 300 === 0) ghosts(g);
   if (t % 100 === 0) vampires(g);
-  const pop = g.dwarves().length;
+  const pop = g.strength(); // adults only: a nursery is not a garrison
   if (!pop) return;
   if (t >= e.nextWere && g.fullMoon()) {
     e.nextWere = t + TICKS_DAY * (22 + g.rng.int(30));
