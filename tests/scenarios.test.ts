@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { MAT, PLANT, T, TICKS_DAY } from '../src/sim/defs';
+import { MAT, PLANT, T, TICKS_DAY, TICKS_YEAR } from '../src/sim/defs';
 import { beast, beginMood, computeAlerts, raid, trade } from '../src/sim/events';
 import { Game, MOON_DAYS } from '../src/sim/game';
 import { birth, issueMandate, maybeMarry } from '../src/sim/civics';
@@ -1016,6 +1016,34 @@ describe('livestock', () => {
     run(g, TICKS_DAY * 4, () => g.count((i) => i.type === 'egg') > 0);
     expect(g.count((i) => i.type === 'egg')).toBeGreaterThan(0);
   });
+});
+
+test('fiery breath needs time to recharge: a fire-breather cannot burn a crowd in moments', () => {
+  const g = flatGame();
+  // six dwarves frozen in place, a moat, and a dragon on the far side with a clear line to all of them
+  const crowd = [0, 1, 2, 3, 4, 5].map((k) => dwarf(g, 40, 37 + k, []));
+  for (const d of crowd) d.nextThink = 1e9;
+  for (let y = 0; y < 96; y++) for (let x = 42; x <= 43; x++) g.w.setTile(cell(x, y), T.Open);
+  const dragon = megabeast(g, 'dragon');
+  g.moveUnit(dragon, cell(45, 40));
+  dragon.leaveAt = 0;
+
+  run(g, 400);
+  // it breathed (somebody is hurt or dead)...
+  expect(crowd.some((d) => d.dead || d.hp < d.maxHp)).toBe(true);
+  // ...but 400 ticks is two or three breaths, not sixteen
+  expect(crowd.filter((d) => !d.dead).length).toBeGreaterThanOrEqual(4);
+});
+
+test('a forgotten beast keeps to its cavern during the first year, however big the fortress', () => {
+  const g = flatGame();
+  for (let k = 0; k < 32; k++) dwarf(g, 30 + (k % 8), 30 + Math.floor(k / 8), []);
+  const early = beast(g, cell(70, 70))!;
+  expect(early.home).toBe(cell(70, 70));
+  // an established fortress of that size does draw it out
+  g.tick = TICKS_YEAR + 100;
+  const late = beast(g, cell(80, 80))!;
+  expect(late.home).toBeUndefined();
 });
 
 describe('forgotten beasts are one of a kind', () => {
