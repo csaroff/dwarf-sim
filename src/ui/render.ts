@@ -524,6 +524,11 @@ export class Renderer {
         box(3.7, 1.6, 0.6, 3.2, shade(fg, 0.8));
         box(3, 2.5, 2, 0.6, shade(fg, 0.8));
         return true;
+      case 'slab':
+        box(1.6, 1, 4.8, 6.4, shade(fg, 0.6));
+        box(1.6, 1, 4.8, 0.6, shade(fg, 0.85));
+        for (let k = 0; k < 3; k++) box(2.6, 2.6 + k * 1.3, 2.8, 0.4, shade(fg, 0.3));
+        return true;
       case 'statue':
         box(2, 6, 4, 1.6, shade(fg, 0.5));
         box(3, 2.6, 2, 3.4, shade(fg, 0.8));
@@ -607,6 +612,203 @@ export class Renderer {
         this.poly(c, px, py, [4, 1.6, 6.4, 4, 4, 6.4, 1.6, 4], shade(m.fg, it.type === 'gem' ? 0.7 : 1));
         this.poly(c, px, py, [4, 1.6, 6.4, 4, 4, 4], 'rgba(255,255,255,0.35)');
         return true;
+    }
+    const d = ITEMS[it.type];
+    const metal = hex6(m.id === 'none' ? '#c0c0c8' : m.fg);
+    const wood = '#9a6a3a';
+    const shadow = () => this.disc(c, px, py, 4, 6.6, 2.8, 'rgba(0,0,0,0.4)', 0.9);
+    // furniture waiting to be placed looks like the furniture
+    if (d.build) {
+      shadow();
+      return this.furniture(c, { type: d.build } as Building, px, py, metal);
+    }
+    switch (it.type) {
+      // ---- weapons: a haft or hilt, and a head of the item's metal
+      case 'sword': case 'dagger': {
+        const len = it.type === 'sword' ? 0 : 1.6;
+        this.poly(c, px, py, [1.4 + len, 6.2 - len, 2.2 + len, 7 - len, 6.8, 2.2, 6.9, 1.1, 5.8, 1.2], metal);
+        this.poly(c, px, py, [1.2, 5, 3, 6.8, 3.5, 6.3, 1.7, 4.5], '#c8a040');
+        box(0.8, 6.4, 1.2, 1.2, wood);
+        return true;
+      }
+      case 'axe': case 'pick': case 'hammer': case 'mace': {
+        this.poly(c, px, py, [1.2, 6.6, 1.9, 7.2, 6.4, 2.4, 5.7, 1.8], wood);
+        if (it.type === 'axe') this.poly(c, px, py, [4.6, 0.8, 7.4, 1.6, 6.6, 4.6, 5.4, 3.2], metal);
+        else if (it.type === 'pick') this.poly(c, px, py, [2.8, 1.4, 5.6, 0.8, 7.4, 3.2, 7, 5.6, 6.2, 2.6, 4.6, 1.8], metal);
+        else if (it.type === 'hammer') box(4.4, 0.8, 3, 2.6, metal);
+        else this.disc(c, px, py, 6, 2.2, 1.7, metal);
+        return true;
+      }
+      case 'spear': case 'pike':
+        this.poly(c, px, py, [0.8, 6.8, 1.4, 7.4, 6.2, 2.4, 5.6, 1.8], wood);
+        this.poly(c, px, py, [5.2, 1.6, 7.6, 0.4, 6.6, 3], metal);
+        return true;
+      case 'whip':
+        box(1, 5.6, 2, 1, wood);
+        for (let k = 0; k < 5; k++) box(2.6 + k, 5.4 - Math.abs(2 - k) * 0.9, 1.1, 0.7, shade(metal, 0.8));
+        return true;
+      case 'crossbow':
+        box(3.6, 1.4, 0.9, 5.6, wood);
+        this.poly(c, px, py, [0.8, 3.4, 4, 1.6, 7.2, 3.4, 7.2, 4, 4, 2.6, 0.8, 4], shade(metal, 0.9));
+        box(1, 3.6, 6, 0.3, '#e8e0d0');
+        return true;
+      case 'bolt':
+        for (let k = 0; k < 3; k++) {
+          this.poly(c, px, py, [1.4 + k * 1.6, 6.6, 1.9 + k * 1.6, 7, 4.6 + k * 1.2, 2.2, 4.1 + k * 1.2, 1.8], wood);
+          this.poly(c, px, py, [3.9 + k * 1.2, 2.2, 5.2 + k * 1.2, 0.8, 4.9 + k * 1.2, 2.6], metal);
+        }
+        return true;
+      // ---- armor and clothing
+      case 'shield':
+        this.poly(c, px, py, [1.4, 1.4, 6.6, 1.4, 6.6, 4.4, 4, 7, 1.4, 4.4], shade(metal, 0.75));
+        this.poly(c, px, py, [2.2, 2.2, 5.8, 2.2, 5.8, 4.2, 4, 6, 2.2, 4.2], metal);
+        box(3.6, 2.2, 0.8, 3.4, shade(metal, 0.55));
+        return true;
+      case 'helm':
+        this.disc(c, px, py, 4, 4, 2.7, metal, 2.5);
+        box(1.3, 4, 5.4, 2.4, metal);
+        box(2.4, 4.4, 3.2, 0.8, '#18181c');
+        box(3.7, 1, 0.6, 1.2, shade(metal, 1.2));
+        return true;
+      case 'mail': case 'breastplate': case 'clothes': {
+        const col = it.type === 'clothes' ? shade(metal, 0.85) : metal;
+        this.poly(c, px, py, [0.6, 2, 2.6, 1, 3.2, 1.8, 4.8, 1.8, 5.4, 1, 7.4, 2, 6.8, 3.8, 5.8, 3.4, 5.8, 7, 2.2, 7, 2.2, 3.4, 1.2, 3.8], col);
+        if (it.type === 'mail') for (let k = 0; k < 3; k++) box(2.4, 3 + k * 1.3, 3.2, 0.3, 'rgba(0,0,0,0.3)');
+        else if (it.type === 'breastplate') box(3.8, 2.2, 0.5, 4.4, shade(metal, 1.25));
+        else box(3.8, 2, 0.4, 5, 'rgba(0,0,0,0.3)');
+        return true;
+      }
+      case 'greaves':
+        box(1.6, 1, 2, 6, metal);
+        box(4.4, 1, 2, 6, metal);
+        box(1.6, 3.4, 2, 0.5, shade(metal, 0.6));
+        box(4.4, 3.4, 2, 0.5, shade(metal, 0.6));
+        return true;
+      case 'gauntlets': case 'boots': {
+        const boot = it.type === 'boots';
+        for (const ox of [0.6, 4.2]) {
+          box(ox + 0.6, boot ? 1.2 : 3.4, 1.8, boot ? 4.6 : 3.4, metal);
+          box(ox, boot ? 5 : 1.6, 3.2, boot ? 1.8 : 2.2, metal);
+        }
+        return true;
+      }
+      // ---- food and drink
+      case 'meal':
+        this.disc(c, px, py, 4, 4.8, 3.2, '#d8d0c0', 2);
+        this.disc(c, px, py, 4, 4.4, 2.2, '#b0703a', 1.3);
+        box(3, 3.6, 1, 0.8, '#70b050');
+        box(4.4, 4, 0.9, 0.8, '#e0c050');
+        return true;
+      case 'meat':
+        this.disc(c, px, py, 3.4, 4.4, 2.6, '#c04848', 2);
+        this.disc(c, px, py, 3.2, 4.2, 1.2, '#e08080', 0.9);
+        box(5.4, 3, 2, 0.9, '#f0ece0');
+        return true;
+      case 'fish':
+        this.disc(c, px, py, 3.6, 4.2, 2.6, '#7ab0d0', 1.5);
+        this.poly(c, px, py, [5.6, 4.2, 7.4, 2.6, 7.4, 5.8], '#5a90b0');
+        box(2, 3.6, 0.7, 0.7, '#101010');
+        return true;
+      case 'cheese':
+        this.poly(c, px, py, [1, 6, 7, 6, 7, 3.4, 1, 4.6], '#e8c040');
+        this.poly(c, px, py, [1, 4.6, 7, 3.4, 4.4, 2.4], '#f4dc70');
+        box(3, 4.8, 0.9, 0.8, '#c09a20');
+        box(5.2, 4.4, 0.7, 0.7, '#c09a20');
+        return true;
+      case 'egg':
+        this.disc(c, px, py, 4, 4.4, 1.9, '#f4ecd8', 2.4);
+        this.disc(c, px, py, 3.4, 3.6, 0.6, '#ffffff');
+        return true;
+      case 'milk':
+        box(2.4, 2.4, 3.2, 4.6, '#b0b4bc');
+        box(2.8, 2.4, 2.4, 1.2, '#ffffff');
+        box(2, 2, 4, 0.6, '#8a8e98');
+        return true;
+      case 'flour':
+        this.poly(c, px, py, [1.6, 7, 6.4, 7, 5.8, 3, 2.2, 3], '#d8c8a0');
+        box(2.8, 2, 2.4, 1.2, '#b8a880');
+        box(3.2, 4.4, 1.6, 1, '#f4f0e4');
+        return true;
+      case 'plant': {
+        const p = plantOf(it.sub || '');
+        if (p.under && p.kind === 'crop' && !p.cloth) {
+          // a mushroom
+          box(3.5, 4, 1, 3, '#e0d8c0');
+          this.disc(c, px, py, 4, 3.6, 2.6, p.fg, 1.7);
+        } else {
+          box(3.7, 3, 0.6, 4, '#4a8a3a');
+          this.disc(c, px, py, 2.8, 3.4, 1.3, p.fg);
+          this.disc(c, px, py, 5.2, 3, 1.3, p.fg);
+          this.disc(c, px, py, 4, 2, 1.3, p.fg);
+        }
+        return true;
+      }
+      case 'seed': {
+        const p = plantOf(it.sub || '');
+        this.poly(c, px, py, [2.4, 7, 5.6, 7, 6, 4, 2, 4], '#a08860');
+        box(3.2, 3.2, 1.6, 0.9, '#806840');
+        box(3, 5, 0.8, 0.8, p.fg);
+        box(4.4, 5.6, 0.8, 0.8, p.fg);
+        return true;
+      }
+      // ---- materials and remains
+      case 'cloth': case 'leather': case 'wool': case 'hide': {
+        const col = hex6(d.fg || m.fg);
+        box(1.4, 2.4, 5.2, 4.2, shade(col, 0.8));
+        box(1.4, 2.4, 5.2, 1.2, col);
+        box(1.4, 4.8, 5.2, 0.4, shade(col, 0.55));
+        return true;
+      }
+      case 'bone':
+        this.poly(c, px, py, [1.8, 6, 2.4, 6.6, 6.2, 2.4, 5.6, 1.8], '#ece8d8');
+        for (const [ax, ay] of [[1.6, 6.4], [2.6, 6.8], [5.4, 1.6], [6.4, 2]]) this.disc(c, px, py, ax, ay, 0.8, '#ece8d8');
+        return true;
+      case 'skull':
+        this.disc(c, px, py, 4, 3.6, 2.5, '#ece8d8', 2.2);
+        box(2.8, 5, 2.4, 1.6, '#ece8d8');
+        box(2.6, 3.4, 1, 1, '#181818');
+        box(4.4, 3.4, 1, 1, '#181818');
+        return true;
+      case 'corpse':
+        this.disc(c, px, py, 4, 5, 3.2, 'rgba(120,20,20,0.55)', 1.6);
+        box(1.6, 4.2, 4.2, 1.6, it.dwarf ? '#8a7060' : '#7a6a5a');
+        this.disc(c, px, py, 6.2, 5, 1, it.dwarf ? '#d8a888' : '#8a7a6a');
+        return true;
+      case 'fuel': case 'sand': case 'clay': {
+        const col = it.type === 'fuel' ? '#2c2c30' : hex6(m.fg);
+        this.poly(c, px, py, [0.8, 6.8, 7.2, 6.8, 5.4, 3.4, 4, 4.4, 2.8, 3], shade(col, 0.85));
+        this.poly(c, px, py, [2.8, 3, 4, 4.4, 3, 6.8, 0.8, 6.8], col);
+        return true;
+      }
+      // ---- made things
+      case 'craft': case 'totem':
+        // a goblet
+        this.poly(c, px, py, [2, 1.6, 6, 1.6, 5, 4.2, 3, 4.2], metal);
+        box(3.6, 4.2, 0.8, 1.8, metal);
+        box(2.6, 6, 2.8, 0.8, shade(metal, 0.7));
+        return true;
+      case 'mechanism':
+        this.disc(c, px, py, 4, 4, 2.8, shade(metal, 0.8));
+        for (let k = 0; k < 8; k++) box(3.5 + Math.cos((k * Math.PI) / 4) * 3, 3.5 + Math.sin((k * Math.PI) / 4) * 3, 1, 1, shade(metal, 0.8));
+        this.disc(c, px, py, 4, 4, 1, '#18181c');
+        return true;
+      case 'cage':
+        box(1.2, 1.4, 5.6, 5.6, 'rgba(0,0,0,0.35)');
+        for (let k = 0; k < 4; k++) box(1.4 + k * 1.6, 1.4, 0.5, 5.6, metal);
+        box(1.2, 1.2, 5.6, 0.6, metal);
+        box(1.2, 6.6, 5.6, 0.6, metal);
+        return true;
+      case 'splint': case 'crutch':
+        this.poly(c, px, py, [1.6, 6.8, 2.3, 7.3, 6, 2.4, 5.3, 1.9], wood);
+        if (it.type === 'crutch') box(4.2, 1.2, 3, 0.8, wood);
+        return true;
+      case 'artifact': {
+        // it glitters
+        const t = Math.floor(performance.now() / 300) % 2;
+        this.poly(c, px, py, [4, 0.6, 5, 3, 7.4, 4, 5, 5, 4, 7.4, 3, 5, 0.6, 4, 3, 3], t ? '#ffe070' : '#fff4c0');
+        this.disc(c, px, py, 4, 4, 1.2, metal);
+        return true;
+      }
     }
     return false;
   }
