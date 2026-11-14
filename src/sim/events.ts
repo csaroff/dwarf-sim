@@ -519,11 +519,20 @@ RUN.mood = (g, u, j) => {
   const mat = ins[0] ? ins[0].mat : MAT.granite;
   for (const it of ins) g.removeItem(it);
   j.items = [];
-  const kind = g.rng.pick(['sceptre', 'crown', 'amulet', 'goblet', 'throne', 'war hammer', 'figurine', 'mug', 'door', 'floodgate']);
+  // An artifact is a real thing of legendary quality: a weapon to wield, armor to wear, furniture to place.
+  // What it is follows from what it was made of; odd materials make a trinket.
+  const kind = MATS[mat].kind;
+  const type = g.rng.pick(
+    kind === 'metal' ? ['sword', 'axe', 'hammer', 'mace', 'spear', 'shield', 'helm', 'mail', 'breastplate']
+      : kind === 'stone' || kind === 'gem' || kind === 'ore' ? ['table', 'chair', 'door', 'statue', 'coffin', 'cabinet', 'chest']
+        : kind === 'wood' ? ['bed', 'table', 'chair', 'door', 'chest', 'cabinet', 'shield', 'crossbow']
+          : MATS[mat].id === 'leather' ? ['mail', 'helm', 'shield'] : ['artifact'],
+  );
   const a = g.rng.pick(['Planned', 'Ancient', 'Glittering', 'Drunken', 'Bearded', 'Molten', 'Sunken', 'Howling']);
   const b2 = g.rng.pick(['Anvil', 'Tankard', 'Abyss', 'Vault', 'Beard', 'Ember', 'Oath', 'Carp']);
-  const name = `${g.rng.pick(FIRST_NAMES)}${g.rng.pick(['ilral', 'ostar', 'umbor', 'akith'])}, "The ${a} ${b2}", a ${MATS[mat].name} ${kind}`;
-  const art = g.spawnItem('artifact', mat, c, 1, { name, q: 6 });
+  const title = `${g.rng.pick(FIRST_NAMES)}${g.rng.pick(['ilral', 'ostar', 'umbor', 'akith'])}, "The ${a} ${b2}"`;
+  const name = type === 'artifact' ? `${title}, a ${MATS[mat].name} ${g.rng.pick(['sceptre', 'crown', 'amulet', 'goblet', 'figurine', 'mug'])}` : title;
+  const art = g.spawnItem(type, mat, c, 1, { name, q: 6 });
   g.ev.artifacts++;
   shop.worker = 0;
   u.state = '';
@@ -532,7 +541,7 @@ RUN.mood = (g, u, j) => {
   const skill = g.rng.pick(['craft', 'mason', 'carpenter', 'smith']);
   u.skills[skill] = 1500;
   g.think(u, 'created a legendary artifact', 30, 30);
-  g.chronicle(`${u.name} created the artifact ${name}.`);
+  g.chronicle(`${u.name} created the artifact ${g.itemName(art, true)}.`);
   g.say(`${u.name} has created ${g.itemName(art)}! ${first(u)} is now a legendary ${skill === 'craft' ? 'craftsdwarf' : skill}.`, 'event', c);
   return 'done';
 };

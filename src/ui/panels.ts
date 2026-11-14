@@ -34,7 +34,7 @@ export function unitPanel(g: Game, u: Unit, nSel: number): string {
   h += btn('Go to', 'center', u.id);
   if (u.isDwarf && u.faction === 'fort') {
     h += btn(u.drafted ? 'Undraft <kbd>R</kbd>' : 'Draft <kbd>R</kbd>', 'draft', '', u.drafted ? 'on' : '', 'Drafted dwarves stop working, fight nearby enemies and go where you right-click');
-    h += btn('Militia', 'militia', u.id, u.militia ? 'on' : '', 'Militia dwarves drop their work and fight raiders on their own, without being drafted');
+    if (!u.child) h += btn('Militia', 'militia', u.id, u.militia ? 'on' : '', 'Militia dwarves drop their work and fight raiders on their own, without being drafted');
     if (u.job && u.job.type !== 'idle' && !u.downSince) h += btn('Cancel job', 'canceljob', u.id);
   } else if (u.faction === 'wild' && !d.water && u.kind !== 'ghost') h += btn(u.hunted ? 'Stop hunting' : 'Mark for hunting', 'hunt', u.id, u.hunted ? 'on' : '');
   else if (u.faction === 'fort') {
@@ -244,7 +244,7 @@ export function cellPanel(g: Game, cell: number): string {
 
 // ------------------------------------------------------------------ modals
 export function laborsModal(g: Game): string {
-  const ds = g.dwarves();
+  const ds = g.dwarves().filter((u) => !u.child); // children do not work
   let h = `<h2><span>Labors</span>${btn('Close', 'closemodal')}</h2><div class="sub" style="margin-bottom:6px;white-space:normal;max-width:900px">Click a cell to cycle priority: blank = never, 1 = first … 4 = last. Brighter cells mean more skill. A dwarf looks for work in priority order, nearest job first. You can always override by selecting a dwarf and right-clicking the job.</div><table><tr><th>Dwarf</th><th>Doing</th>`;
   for (const l of LABORS) h += `<th title="${esc(LABOR_HELP[l])}">${LABOR_NAME[l]}</th>`;
   h += '</tr>';

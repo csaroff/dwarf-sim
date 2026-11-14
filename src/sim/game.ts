@@ -318,6 +318,7 @@ export class Game {
     if (it.type === 'boulder' || it.type === 'ore' || it.type === 'gem') v = Math.max(1, m.value) * (it.type === 'gem' ? 1 : 1);
     if (it.type === 'cutgem') v = m.value * 2;
     v *= QVALUE[it.q] || 1;
+    if (it.q >= 6 && it.name) v = Math.max(v, 2400 * Math.max(1, m.value)); // a named artifact is priceless whatever it is
     return Math.max(0, Math.round(v * it.n));
   }
   /** Can unit u (or anyone, if u is undefined) use this item right now? */

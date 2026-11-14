@@ -465,9 +465,30 @@ describe('strange moods', () => {
     expect(u.dead).toBe(false);
     expect(u.state).toBe('');
     expect(u.thirst).toBeLessThan(thirst + 60);
-    expect(g.count((i) => i.type === 'artifact')).toBe(1);
+    expect(g.count((i) => i.q === 6 && !!i.name)).toBe(1);
     expect(g.ev.artifacts).toBe(1);
     expect(shop.worker).toBe(0);
+  });
+
+  test('an artifact is a real, usable thing: metal makes a named weapon or armor of legendary quality', () => {
+    const g = flatGame();
+    const u = dwarf(g, 40, 40, []);
+    built(g, 'forge', 44, 39);
+    g.spawnItem('bar', MAT.iron, cell(38, 38), 3);
+    beginMood(g, u);
+    run(g, TICKS_DAY * 4, () => u.state !== 'mood');
+
+    const art = Array.from(g.items.values()).find((i) => i.q === 6)!;
+    expect(['sword', 'axe', 'hammer', 'mace', 'spear', 'shield', 'helm', 'mail', 'breastplate']).toContain(art.type);
+    expect(g.itemName(art, true)).toMatch(/^\w+, "The \w+ \w+", iron /);
+    expect(g.itemValue(art)).toBeGreaterThanOrEqual(2400);
+    expect(g.history.some((h) => /created the artifact .*"The /.test(h.text))).toBe(true);
+
+    // the militia take the best gear there is, which is now this
+    const soldier = dwarf(g, 46, 46, []);
+    soldier.militia = true;
+    run(g, 800, () => Object.values(soldier.equip).includes(art.id));
+    expect(Object.values(soldier.equip)).toContain(art.id);
   });
 
   test('a mood that cannot be satisfied says what is missing before the dwarf goes insane', () => {
