@@ -98,6 +98,99 @@ export function settle(g: Game, cell: number) {
     fallDamage(g, u, dz);
   }
 }
+// ------------------------------------------------------------------ cave-ins
+const CAVE_LIMIT = 400;
+/**
+ * The piece of rock / floor that cell c belongs to, if it is small and touches nothing else: [] when it is held up.
+ * Tiles hold each other up sideways (not diagonally), and a solid wall holds up whatever sits on top of it.
+ * A floor over a dug-out room is held only by its neighbours.
+ */
+function looseChunk(g: Game, c: number, seen: Set<number>): number[] {
+  const w = g.w;
+  const solid = (k: number) => w.tile[k] === T.Wall || w.tile[k] === T.Tree;
+  const chunk: number[] = [c];
+  const mine = new Set<number>([c]);
+  let held = false;
+  for (let q = 0; q < chunk.length && !held; q++) {
+    const k = chunk[q];
+    const x = X(k), y = Y(k), z = Z(k);
+    if (z === 0 || x === 0 || y === 0 || x === 95 || y === 95 || seen.has(k) || chunk.length > CAVE_LIMIT) {
+      held = true;
+      break;
+    }
+    const add = (n: number) => {
+      if (!mine.has(n)) {
+        mine.add(n);
+        chunk.push(n);
+      }
+    };
+    if (w.tile[k - 1] !== T.Open) add(k - 1);
+    if (w.tile[k + 1] !== T.Open) add(k + 1);
+    if (w.tile[k - 96] !== T.Open) add(k - 96);
+    if (w.tile[k + 96] !== T.Open) add(k + 96);
+    if (solid(k - WH)) add(k - WH);
+    if (z < 31 && solid(k) && w.tile[k + WH] !== T.Open) add(k + WH);
+  }
+  if (held) {
+    // remember everything explored: it is all attached to something big
+    for (const k of chunk) seen.add(k);
+    return [];
+  }
+  return chunk;
+}
+/** After the map changed at these cells: does anything nearby now hang in mid-air? If so it comes down. */
+export function checkCaveIn(g: Game, cells: number[]) {
+  const w = g.w;
+  const seen = new Set<number>();
+  for (const c of cells) {
+    const x = X(c), y = Y(c), z = Z(c);
+    const around = [c, c - 1, c + 1, c - 96, c + 96, c - WH, c + WH];
+    for (const n of around) {
+      if (n < 0 || n >= w.tile.length || !inMap(x, y, z) || w.tile[n] === T.Open || seen.has(n)) continue;
+      const chunk = looseChunk(g, n, seen);
+      if (chunk.length) collapse(g, chunk);
+    }
+  }
+}
+function collapse(g: Game, chunk: number[]) {
+  const w = g.w;
+  const set = new Set(chunk);
+  const rock: [number, number][] = [];
+  for (const c of chunk) {
+    const b = g.buildingAt(c);
+    if (b) g.removeBuilding(b);
+    if (w.desig[c]) g.designate(c, 0);
+    g.crops.delete(c);
+    if (w.tile[c] === T.Wall && !(w.flag[c] & F.Built)) rock.push([c, w.mat[c]]);
+    w.plant[c] = 0;
+    w.flag[c] &= F.Revealed;
+    w.setTile(c, T.Open);
+  }
+  // where each piece lands, and who is standing there
+  const land = (c: number) => {
+    let k = c;
+    while (Z(k) > 0 && w.tile[k] === T.Open && w.tile[k - WH] !== T.Wall) k -= WH;
+    return k;
+  };
+  const victims = new Set<Unit>();
+  for (const c of chunk) for (const u of g.unitsIn(land(c))) if (!set.has(g.cellOf(u))) victims.add(u);
+  for (const c of chunk) settle(g, c); // whatever stood on the chunk rides it down
+  for (const [c, mat] of rock) {
+    const m = MATS[mat];
+    if (m.kind === 'stone' || m.kind === 'ore' || m.kind === 'gem') g.spawnItem(m.kind === 'stone' ? 'boulder' : m.kind === 'ore' ? 'ore' : 'gem', mat, land(c));
+  }
+  const at = land(chunk[0]);
+  g.reveal(at);
+  g.say(`A section of the ${w.outside(chunk[0]) ? 'ground' : 'cavern'} has collapsed!`, 'bad', at, true);
+  for (const u of victims) {
+    if (u.dead) continue;
+    u.hp -= 25 + g.rng.int(45);
+    g.say(`${u.isDwarf ? u.name : g.unitName(u)} is caught under the falling rock!`, u.faction === 'fort' ? 'bad' : 'good', g.cellOf(u));
+    if (u.hp <= 0) killUnit(g, u, 'been crushed in a cave-in');
+    else fallDamage(g, u, 1);
+  }
+}
+
 export let fallDamage: (g: Game, u: Unit, dz: number) => void = () => {};
 export let killUnit: (g: Game, u: Unit, cause: string, by?: Unit) => void = () => {};
 export let attack: (g: Game, a: Unit, b: Unit) => void = () => {};
@@ -192,6 +285,8 @@ export function applyDesig(g: Game, u: Unit, cell: number) {
       break;
     }
   }
+  // digging can leave rock hanging with nothing to hold it
+  if (d === DG.Dig || d === DG.Channel || d === DG.Stair || d === DG.Ramp || d === DG.Remove) checkCaveIn(g, d === DG.Ramp ? [cell, cell + WH] : [cell]);
 }
 
 // ------------------------------------------------------------------ job plumbing

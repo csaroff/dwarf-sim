@@ -208,6 +208,44 @@ describe('z-levels and mining', () => {
   });
 });
 
+describe('cave-ins', () => {
+  test('a floor cut off on all four sides falls into the room below, onto whatever is there', () => {
+    const g = flatGame();
+    const miner = dwarf(g, 36, 41, ['mine']);
+    give(g, miner, 'pick', 'pick');
+    // a room one level down, with a goblin standing in the middle of it
+    room(g, 39, 39, 43, 43, 19);
+    const gob = g.addUnit('goblin', cell(41, 41, 19), 'enemy');
+    gob.nextThink = 1e9;
+    const plug = cell(41, 41, 20);
+
+    // channel the four tiles around the piece of floor directly above the goblin
+    for (const [x, y] of [[40, 41], [42, 41], [41, 40], [41, 42]]) g.designate(cell(x, y, 20), DG.Channel);
+    // three sides cut: it still hangs on by the last one
+    run(g, 3000, () => g.desigs.size === 1);
+    expect(g.w.tile[plug]).toBe(T.Floor);
+
+    run(g, 3000, () => g.w.tile[plug] === T.Open);
+    expect(g.w.tile[plug]).toBe(T.Open);
+    expect(g.log.some((l) => /has collapsed/.test(l.text))).toBe(true);
+    // the game stops to show it, and the goblin was under it
+    expect(g.attention?.text).toMatch(/collapsed/);
+    expect(gob.dead || gob.hp < gob.maxHp).toBe(true);
+  });
+
+  test('ordinary mining never brings the roof down', () => {
+    const g = flatGame();
+    const miner = dwarf(g, 40, 40, ['mine']);
+    give(g, miner, 'pick', 'pick');
+    for (const z of [20, 19, 18]) g.designate(cell(40, 40, z), DG.Stair);
+    for (let y = 38; y <= 44; y++) for (let x = 41; x <= 48; x++) g.designate(cell(x, y, 18), DG.Dig);
+    for (let y = 38; y <= 44; y++) for (let x = 41; x <= 48; x++) g.designate(cell(x, y, 19), DG.Dig);
+    run(g, 40000, () => g.desigs.size === 0);
+    expect(g.desigs.size).toBe(0);
+    expect(g.log.some((l) => /collapsed/.test(l.text))).toBe(false);
+  });
+});
+
 describe('unrealistic but exploitable mechanics', () => {
   test('the dwarven atom smasher: a lowering drawbridge obliterates what is under it', () => {
     const g = flatGame();

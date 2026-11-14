@@ -43,7 +43,7 @@ const TOOLS: Record<string, Tool[]> = {
   Orders: [
     { id: 'dig', label: 'Mine', desig: DG.Dig, desc: 'Dig out walls, leaving a floor. Drag a rectangle. Unexplored rock can be marked too.' },
     { id: 'stair', label: 'Stairs', desig: DG.Stair, desc: 'Carve up/down stairs. Stairs connect to stairs directly above and below: mark the same tile on each level (Q / E change level).' },
-    { id: 'channel', label: 'Channel', desig: DG.Channel, desc: 'Dig a hole in the floor, leaving a ramp on the level below. Good for moats, wells and pits.' },
+    { id: 'channel', label: 'Channel', desig: DG.Channel, desc: 'Dig a hole in the floor, leaving a ramp on the level below. Good for moats, wells and pits. Careful: a piece of floor or rock cut off from everything around it caves in, along with whoever is on it.' },
     { id: 'ramp', label: 'Ramp', desig: DG.Ramp, desc: 'Carve a wall into a ramp up to the level above.' },
     { id: 'chop', label: 'Chop trees', desig: DG.Chop, desc: 'Fell trees for logs (needs an axe).' },
     { id: 'gather', label: 'Gather plants', desig: DG.Gather, desc: 'Pick wild shrubs: berries to eat and brew.' },
