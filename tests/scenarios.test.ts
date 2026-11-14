@@ -593,6 +593,46 @@ test('a cavern beast defends its territory but does not follow a trail of victim
   void mid;
 });
 
+test('the militia leaves a beast alone in its lair instead of marching in to die', () => {
+  const g = flatGame();
+  const home = cell(70, 60);
+  const beast = g.addUnit('beast', home, 'enemy');
+  beast.home = home;
+  // a pet has wandered into its territory, so the beast is busy with a target
+  const stray = g.addUnit('dog', cell(74, 60), 'fort');
+  stray.nextThink = 1e9;
+  const soldier = dwarf(g, 48, 60, []);
+  soldier.militia = true;
+  give(g, soldier, 'axe', 'weapon', MAT.iron);
+
+  run(g, 300);
+  expect(soldier.dead).toBe(false);
+  expect(soldier.job?.type).not.toBe('attack');
+  expect(dist(g.cellOf(soldier), home)).toBeGreaterThan(TERRITORY);
+});
+
+test('a crowd of unarmed dwarves mobs a lone goblin instead of dying one by one', () => {
+  const g = flatGame();
+  const crowd = [0, 1, 2, 3, 4, 5].map((k) => dwarf(g, 40 + (k % 3), 40 + Math.floor(k / 3), []));
+  const gob = g.addUnit('goblin', cell(47, 40), 'enemy');
+  g.equip(gob, g.spawnItem('sword', MAT.copper, g.cellOf(gob)), 'weapon');
+
+  run(g, 60);
+  // six against one: they do not run
+  expect(crowd.filter((d) => d.job?.type === 'attack').length).toBeGreaterThanOrEqual(4);
+  expect(explainUnit(g, crowd.find((d) => d.job?.type === 'attack')!).status).toMatch(/Mobbing the goblin/);
+  run(g, 2500, () => gob.dead || !g.units.has(gob.id));
+  expect(gob.dead || !g.units.has(gob.id)).toBe(true);
+  expect(crowd.filter((d) => !d.dead).length).toBeGreaterThanOrEqual(4);
+
+  // one dwarf alone still runs
+  const g2 = flatGame();
+  const loner = dwarf(g2, 40, 40, []);
+  g2.addUnit('goblin', cell(46, 40), 'enemy');
+  run(g2, 40);
+  expect(loner.job?.type).toBe('flee');
+});
+
 describe('things that come in the night', () => {
   test('a werebeast bite curses a dwarf, who transforms at the next full moon and changes back healed', () => {
     const g = flatGame();
