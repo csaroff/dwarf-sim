@@ -125,6 +125,9 @@ export interface Unit {
   // ---- non-dwarves
   hunted?: boolean;
   slaughter?: boolean;
+  train?: boolean; // dogs: marked for war training
+  milkAt?: number; // tick it can next be milked
+  shearAt?: number; // tick it can next be shorn
   leaveAt?: number; // tick when visitors / raiders give up and leave
   flee?: boolean;
   stolen?: number;

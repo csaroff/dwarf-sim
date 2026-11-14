@@ -640,6 +640,83 @@ test('a crowd of unarmed dwarves mobs a lone goblin instead of dying one by one'
   expect(loner.job?.type).toBe('flee');
 });
 
+describe('fortress defences', () => {
+  test('a weapon trap strikes every raider that crosses it, and keeps working', () => {
+    const g = flatGame();
+    const bait = dwarf(g, 55, 40, []);
+    bait.nextThink = 1e9;
+    // a corridor, so the only way to the dwarf is over the traps
+    for (let x = 30; x < 60; x++) for (const y of [39, 41]) g.w.setTile(cell(x, y), T.Wall, MAT.granite);
+    for (const x of [44, 45, 46]) {
+      const trap = built(g, 'weapontrap', x, 40);
+      const axe = g.spawnItem('axe', MAT.steel, cell(x, 40));
+      axe.in = trap.id;
+      trap.mats.push(axe.id);
+    }
+    const a = g.addUnit('goblin', cell(36, 40), 'enemy');
+    const b = g.addUnit('goblin', cell(34, 40), 'enemy');
+    run(g, 900, () => !g.units.has(a.id) && !g.units.has(b.id));
+    expect(g.log.filter((l) => /A weapon trap hacks/.test(l.text)).length).toBeGreaterThanOrEqual(2);
+    expect(bait.dead).toBe(false);
+    // unlike a stone-fall trap, it is still there afterwards
+    expect(g.buildingAt(cell(45, 40))?.type).toBe('weapontrap');
+  });
+
+  test('marksdwarves shoot through fortifications; raiders cannot walk through them', () => {
+    const g = flatGame();
+    const archer = dwarf(g, 40, 40, []);
+    archer.skills.shoot = 900;
+    give(g, archer, 'crossbow', 'weapon', MAT.oak);
+    g.equip(archer, g.spawnItem('bolt', MAT.steel, g.cellOf(archer), 30), 'ammo');
+    // a line of fortifications right across the map
+    for (let y = 0; y < 96; y++) built(g, 'fortification', 43, y);
+    const gob = g.addUnit('goblin', cell(48, 40), 'enemy');
+    expect(g.w.canReach(g.cellOf(gob), g.cellOf(archer), true)).toBe(false);
+    expect(lineOfSight(g, g.cellOf(archer), g.cellOf(gob))).toBe(true);
+
+    setDraft(g, archer, true);
+    run(g, 1200, () => gob.dead || !g.units.has(gob.id));
+    expect(gob.dead || !g.units.has(gob.id)).toBe(true);
+    expect(archer.hp).toBe(archer.maxHp);
+  });
+});
+
+describe('livestock', () => {
+  test('a hunter trains a dog for war when asked, and it then goes for raiders', () => {
+    const g = flatGame();
+    const trainer = dwarf(g, 40, 40, ['hunt']);
+    const dog = g.addUnit('dog', cell(43, 40), 'fort');
+    dog.name = 'Rex';
+    dog.train = true;
+    run(g, 1500, () => dog.kind === 'war_dog');
+    expect(dog.kind).toBe('war_dog');
+    expect(g.log.some((l) => /has trained Rex into a war dog/.test(l.text))).toBe(true);
+    void trainer;
+  });
+
+  test('farmers milk and shear on their own; milk becomes cheese; hens lay', () => {
+    const g = flatGame();
+    const farmer = dwarf(g, 40, 40, ['farm', 'cook']);
+    const yak = g.addUnit('yak', cell(43, 40), 'fort');
+    yak.nextThink = 1e9;
+    run(g, 800, () => g.count((i) => i.type === 'milk') > 0 && g.count((i) => i.type === 'wool') > 0);
+    expect(g.count((i) => i.type === 'milk')).toBe(2);
+    expect(g.count((i) => i.type === 'wool')).toBe(2);
+    // not again until it has had time: the menu says when
+    expect(optionsAt(g, farmer, g.cellOf(yak)).find((o) => o.label.startsWith('Milk'))!.why).toMatch(/milked recently \(ready in 4\.0 days\)/);
+
+    const kitchen = built(g, 'kitchen', 46, 44);
+    kitchen.bills.push({ recipe: 'cheese', mode: 'count', n: 1, paused: false });
+    run(g, 1500, () => g.count((i) => i.type === 'cheese') > 0);
+    expect(g.itemName(Array.from(g.items.values()).find((i) => i.type === 'cheese')!, true)).toBe('yak cheese');
+
+    const hen = g.addUnit('chicken', cell(50, 50), 'fort');
+    hen.nextThink = 1e9;
+    run(g, TICKS_DAY * 4, () => g.count((i) => i.type === 'egg') > 0);
+    expect(g.count((i) => i.type === 'egg')).toBeGreaterThan(0);
+  });
+});
+
 describe('things that come in the night', () => {
   test('a werebeast bite curses a dwarf, who transforms at the next full moon and changes back healed', () => {
     const g = flatGame();
@@ -673,6 +750,7 @@ describe('things that come in the night', () => {
     expect(alertText(g)).toMatch(/turns in 0\.5d/);
 
     const bystander = dwarf(g, 44, 40, []);
+    bystander.nextThink = 1e9; // frozen in fear: a dwarf who fights back can beat a were-dwarf to death
     run(g, 1200, () => victim.state === 'were');
     expect(victim.state).toBe('were');
     expect(victim.wounds.length).toBe(0);

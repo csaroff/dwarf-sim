@@ -283,7 +283,11 @@ export class Game {
       case 'skull': s = `${it.sub || ''} skull`.trim(); break;
       case 'fuel': s = m.name; break;
       case 'flour': s = it.sub || 'flour'; break;
-      case 'leather': case 'cloth': s = m.name; break;
+      case 'egg': s = `${it.sub || ''} egg`.trim(); break;
+      case 'milk': s = `${it.sub || ''} milk`.trim(); break;
+      case 'cheese': s = `${it.sub || ''} cheese`.trim(); break;
+      case 'wool': s = `${it.sub || ''} wool`.trim(); break;
+      case 'leather': case 'cloth': s = m.id === 'wool' ? 'wool cloth' : m.name; break;
       case 'artifact': s = it.name || 'artifact'; break;
       default: s = m.id === 'none' ? d.name : `${m.name} ${d.name}`;
     }
@@ -385,7 +389,7 @@ export class Game {
     return s;
   }
   edible(it: Item) {
-    return it.type === 'meal' || it.type === 'meat' || it.type === 'fish' || (it.type === 'plant' && !!plantOf(it.sub || '').raw);
+    return it.type === 'meal' || it.type === 'meat' || it.type === 'fish' || it.type === 'cheese' || (it.type === 'plant' && !!plantOf(it.sub || '').raw);
   }
 
   // ------------------------------------------------------------------ units

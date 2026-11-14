@@ -37,7 +37,10 @@ export function unitPanel(g: Game, u: Unit, nSel: number): string {
     h += btn('Militia', 'militia', u.id, u.militia ? 'on' : '', 'Militia dwarves drop their work and fight raiders on their own, without being drafted');
     if (u.job && u.job.type !== 'idle' && !u.downSince) h += btn('Cancel job', 'canceljob', u.id);
   } else if (u.faction === 'wild' && !d.water && u.kind !== 'ghost') h += btn(u.hunted ? 'Stop hunting' : 'Mark for hunting', 'hunt', u.id, u.hunted ? 'on' : '');
-  else if (u.faction === 'fort') h += btn(u.slaughter ? 'Spare' : 'Mark for slaughter', 'slaughter', u.id, u.slaughter ? 'on' : '');
+  else if (u.faction === 'fort') {
+    if (u.kind === 'dog') h += btn(u.train ? 'Training ordered' : 'Train for war', 'train', u.id, u.train ? 'on' : '', 'A dwarf with the Hunt labor turns this dog into a war dog');
+    h += btn(u.slaughter ? 'Spare' : 'Mark for slaughter', 'slaughter', u.id, u.slaughter ? 'on' : '');
+  }
   h += '</div>';
   if (u.hunted) h += whys(['Hunt — ' + explainTask(g, 'hunt', (x) => tryHunt(g, x, u), 'u' + u.id)]);
   if (u.slaughter) h += whys(['Slaughter — ' + explainTask(g, 'cook', (x) => trySlaughter(g, x, u), 'u' + u.id)]);
@@ -103,6 +106,10 @@ export function buildingPanel(g: Game, b: Building, linking: boolean): string {
     h += whys([isHospitalBed(g, b) ? 'Hospital bed: the wounded are carried here.' : o ? `Belongs to ${o.name}.` : 'Unclaimed: the next sleepy dwarf will take it. (Put it inside a Hospital zone to make it a hospital bed.)']);
   }
   if (b.type === 'coffin') h += whys([b.corpse ? `Here lies ${b.corpse}.` : 'Empty.']);
+  if (b.type === 'weapontrap') {
+    const wpn = b.mats.map((id) => g.items.get(id)).find((it) => it && ITEMS[it.type].weapon);
+    h += whys([wpn ? `Armed with ${g.itemName(wpn)}. Strikes every hostile that steps here.` : 'No weapon in it.']);
+  }
   if (b.type === 'cagetrap') {
     const c = g.units.get(b.caged || 0);
     h += whys([c ? `Holding ${g.unitName(c)}. Removing the trap sets it loose.` : 'Armed.']);

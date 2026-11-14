@@ -63,7 +63,9 @@ const TOOLS: Record<string, Tool[]> = {
   ],
 };
 const MENUS: [string, string][] = [['Structure', 'structure'], ['Furniture', 'furniture'], ['Workshops', 'production'], ['Machines', 'machines']];
-for (const [name, menu] of MENUS) TOOLS[name] = Object.values(BUILDINGS).filter((b) => b.menu === menu).map((b) => ({ id: 'b_' + b.id, label: b.name, build: b.id, desc: `${b.desc} Needs: ${b.needs.map((n) => `${n.n}× ${Array.isArray(n.type) ? n.type.join('/') : n.type}`).join(' + ')}.` }));
+for (const [name, menu] of MENUS) TOOLS[name] = Object.values(BUILDINGS).filter((b) => b.menu === menu).map((b) => ({ id: 'b_' + b.id, label: b.name, build: b.id, desc: `${b.desc} Needs: ${b.needs.map((n) => `${n.n}× ${Array.isArray(n.type) ? (n.type.length > 4 ? 'melee weapon' : n.type.join('/')) : n.type}`).join(' + ')}.` }));
+/** one-tile buildings that are laid by dragging a line or rectangle */
+const LINES = ['axle', 'fortification', 'weapontrap', 'cagetrap', 'stonetrap'];
 let cat = '';
 let tool: Tool | null = null;
 let drag: { x: number; y: number; cell: number; pan: boolean; cx: number; cy: number } | null = null;
@@ -110,7 +112,7 @@ function rectCells(a: number, b: number): number[] {
 /** where a building of the current tool would go for the hover cell (and drag start) */
 function footprint(t: Tool, a: number, b: number) {
   const d = BUILDINGS[t.build!];
-  if (d.tile !== undefined || t.build === 'bridge' || t.build === 'axle') return rectOf(a, b);
+  if (d.tile !== undefined || t.build === 'bridge' || LINES.includes(t.build!)) return rectOf(a, b);
   const x0 = X(b) - (d.w >> 1), y0 = Y(b) - (d.h >> 1);
   return { x0, y0, x1: x0 + d.w - 1, y1: y0 + d.h - 1 };
 }
@@ -146,7 +148,7 @@ function applyTool(t: Tool, a: number, b: number) {
   } else if (t.build) {
     const d = BUILDINGS[t.build];
     const r = footprint(t, a, b);
-    if (d.tile !== undefined || t.build === 'axle') {
+    if (d.tile !== undefined || LINES.includes(t.build)) {
       let n = 0, why = '';
       for (const c of cells) {
         const can = canPlace(g, t.build, X(c), Y(c), Z(c));
@@ -426,6 +428,7 @@ function act(a: string, v: string, el?: HTMLElement) {
     case 'militia': if (u) u.militia = !u.militia; break;
     case 'hunt': if (u) u.hunted = !u.hunted; break;
     case 'slaughter': if (u) u.slaughter = !u.slaughter; break;
+    case 'train': if (u) u.train = !u.train; break;
     case 'labor': if (u) u.labors[p1 as Labor] = (u.labors[p1 as Labor] + 1) % 5; break;
     case 'suspend': if (b) b.suspended = !b.suspended; break;
     case 'cancelbuild': if (b) { g.removeBuilding(b); deselect(); } break;
@@ -655,7 +658,7 @@ function loop() {
   if (ov.hover >= 0) {
     if (tool?.build) {
       const r = footprint(tool, drag ? drag.cell : ov.hover, ov.hover);
-      const single = BUILDINGS[tool.build].tile === undefined && tool.build !== 'axle';
+      const single = BUILDINGS[tool.build].tile === undefined && !LINES.includes(tool.build);
       ov.rect = { ...r, ok: single ? canPlace(g, tool.build, r.x0, r.y0, R.cam.z, r.x1 - r.x0 + 1, r.y1 - r.y0 + 1).ok : true };
     } else if (drag && !drag.pan && (tool || ov.hover !== drag.cell)) ov.rect = { ...rectOf(drag.cell, ov.hover), ok: true };
   }

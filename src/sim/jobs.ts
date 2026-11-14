@@ -8,7 +8,7 @@
 // Because every task goes through a tryX function, the game can always answer "why is nobody doing this?"
 // (explainTask) and "why can't this dwarf do it?" (the right-click menu shows the reason).
 import {
-  BUILDINGS, CREATURES, CROPS, F, ITEMS, Ing, LABORS, LABOR_NAME, Labor, MAT, MATS, PLANT, PLANTS, RECIPES, Recipe, T, TICKS_DAY, plantOf, matOf,
+  BUILDINGS, CREATURES, CROPS, F, ITEMS, TRAP_WEAPONS, Ing, LABORS, LABOR_NAME, Labor, MAT, MATS, PLANT, PLANTS, RECIPES, Recipe, T, TICKS_DAY, plantOf, matOf,
 } from './defs';
 import { Game, MAX_AMMO, MAX_STACK } from './game';
 import type { Bill, Building, Can, Item, Job, Unit, Zone } from './types';
@@ -527,6 +527,7 @@ function ingName(ing: Ing): string {
   if (ing.tag === 'cookable') s = 'cookable food';
   if (ing.tag === 'butcherable') s = 'animal corpse';
   if (ing.tag === 'emptybarrel') s = 'empty barrel';
+  if (ing.type === TRAP_WEAPONS) s = 'melee weapon (sword, axe, spear, mace…)';
   if (ing.tag === 'flux') s = 'flux stone (limestone, marble, dolomite or chalk)';
   return s;
 }
@@ -599,7 +600,7 @@ export function placeBuilding(g: Game, type: string, x: number, y: number, z: nu
   g.w.version++;
   return b;
 }
-const standOn = (b: Building) => !['wall', 'statue', 'floodgate', 'well', 'pump', 'floor', 'bridge'].includes(b.type);
+const standOn = (b: Building) => !['wall', 'statue', 'fortification', 'floodgate', 'well', 'pump', 'floor', 'bridge'].includes(b.type);
 /** deep water right beside a cell (or one level down past an open edge): what a water wheel needs */
 export function wheelWater(g: Game, c: number): boolean {
   const w = g.w;
@@ -801,7 +802,8 @@ function produce(g: Game, u: Unit, b: Building, r: Recipe, ins: Item[]) {
         const m = o.mat ? MAT[o.mat] : mat;
         const d = ITEMS[o.type];
         const hasQ = !!(d.build || d.weapon || d.armor || d.cat === 'goods' || o.type === 'cutgem');
-        if (g.stackable({ type: o.type } as Item)) out(o.type, m, o.n, { q: hasQ ? g.qualityRoll(u, r.labor) : 0, sub: o.sub });
+        const sub = o.sub ?? (o.type === 'cheese' ? firstIn?.sub : undefined); // yak milk makes yak cheese
+        if (g.stackable({ type: o.type } as Item)) out(o.type, m, o.n, { q: hasQ ? g.qualityRoll(u, r.labor) : 0, sub });
         else for (let k = 0; k < o.n; k++) out(o.type, m, 1, { q: hasQ ? g.qualityRoll(u, r.labor) : 0 });
       }
   }
@@ -903,6 +905,29 @@ export function trySlaughter(g: Game, u: Unit, a: Unit): Try {
   if (g.claimed('u' + a.id, u)) return `${first(g.claimant('u' + a.id)!)} is already on it`;
   if (!g.w.canReach(g.cellOf(u), g.cellOf(a), true)) return 'no path to it';
   return mk('slaughter', `Slaughtering ${g.unitName(a)}`, g.cellOf(a), { u: a.id, key: 'u' + a.id, labor: 'cook' });
+}
+
+// ------------------------------------------------------------------ livestock
+const DAY = TICKS_DAY;
+/** war training turns a dog into a war dog: tougher, and it goes for enemies from further off */
+export function tryTrain(g: Game, u: Unit, a: Unit): Try {
+  if (a.dead) return 'It is dead';
+  if (a.kind !== 'dog') return a.kind === 'war_dog' ? 'Already trained for war' : 'Only dogs can be trained for war';
+  if (g.claimed('u' + a.id, u)) return `${first(g.claimant('u' + a.id)!)} is already training it`;
+  if (!g.w.canReach(g.cellOf(u), g.cellOf(a), true)) return 'no path to it';
+  return mk('train', `Training ${g.unitName(a)} for war`, g.cellOf(a), { u: a.id, key: 'u' + a.id, labor: 'hunt' });
+}
+export const canMilk = (g: Game, a: Unit) => !!CREATURES[a.kind].milk && a.faction === 'fort' && !a.dead && g.tick >= (a.milkAt || 0);
+export const canShear = (g: Game, a: Unit) => !!CREATURES[a.kind].wool && a.faction === 'fort' && !a.dead && g.tick >= (a.shearAt || 0);
+export function tryTend2(g: Game, u: Unit, a: Unit, what: 'milk' | 'shear'): Try {
+  const d = CREATURES[a.kind];
+  if (a.dead) return 'It is dead';
+  if (what === 'milk' ? !d.milk : !d.wool) return what === 'milk' ? `${d.name}s cannot be milked` : `${d.name}s have no wool`;
+  const at = what === 'milk' ? a.milkAt || 0 : a.shearAt || 0;
+  if (g.tick < at) return what === 'milk' ? `was milked recently (ready in ${((at - g.tick) / DAY).toFixed(1)} days)` : `the wool has not grown back (ready in ${((at - g.tick) / DAY).toFixed(1)} days)`;
+  if (g.claimed('u' + a.id, u)) return `${first(g.claimant('u' + a.id)!)} is already with it`;
+  if (!g.w.canReach(g.cellOf(u), g.cellOf(a), true)) return 'no path to it';
+  return mk(what, `${what === 'milk' ? 'Milking' : 'Shearing'} ${g.unitName(a)}`, g.cellOf(a), { u: a.id, key: 'u' + a.id, labor: 'farm' });
 }
 
 // ------------------------------------------------------------------ levers, burial
@@ -1365,6 +1390,32 @@ export const RUN: Record<string, Runner> = {
     killUnit(g, a, 'been slaughtered');
     return 'done';
   },
+  train(g, u, j) {
+    const a = g.units.get(j.u!);
+    if (!a || a.dead) return 'the animal is gone';
+    const w = walk(g, u, g.cellOf(a), true);
+    if (w === 'blocked') return blocked;
+    if (w === 'going') return 'run';
+    a.path = null; // it sits and pays attention
+    j.t += g.speedMul(u, 'hunt');
+    if (j.t < 300) return 'run';
+    const d = CREATURES.war_dog;
+    a.kind = 'war_dog';
+    a.fg = d.fg;
+    a.skill = d.skill;
+    a.maxHp = Math.round(40 * d.size);
+    a.hp = a.maxHp;
+    a.train = false;
+    g.train(u, 'hunt', 40);
+    g.say(`${first(u)} has trained ${a.name} into a war dog.`, 'good', g.cellOf(a));
+    return 'done';
+  },
+  milk(g, u, j) {
+    return tendAnimal(g, u, j, 'milk');
+  },
+  shear(g, u, j) {
+    return tendAnimal(g, u, j, 'shear');
+  },
   pull(g, u, j) {
     const b = g.buildings.get(j.b!);
     if (!b) return 'the lever is gone';
@@ -1424,7 +1475,8 @@ export const RUN: Record<string, Runner> = {
       g.think(u, 'ate raw plants', -1);
       const p = plantOf(it.sub || '');
       if (p.grow) g.spawnItem('seed', MAT.none, g.cellOf(u), 1, { sub: p.id });
-    } else g.think(u, 'ate raw meat', -3);
+    } else if (it.type === 'cheese') g.think(u, 'ate some cheese', 1);
+    else g.think(u, 'ate raw meat', -3);
     if (chair && g.cellOf(u) === g.center(chair)) g.think(u, 'dined at a proper table', 2);
     else g.think(u, 'had to eat without a table', -2);
     g.removeItem(it);
@@ -1605,6 +1657,27 @@ export const RUN: Record<string, Runner> = {
   },
 };
 
+function tendAnimal(g: Game, u: Unit, j: Job, what: 'milk' | 'shear'): string {
+  const a = g.units.get(j.u!);
+  if (!a || a.dead) return 'the animal is gone';
+  const w = walk(g, u, g.cellOf(a), true);
+  if (w === 'blocked') return blocked;
+  if (w === 'going') return 'run';
+  a.path = null; // it stands still for it
+  j.t += g.speedMul(u, 'farm');
+  if (j.t < 60) return 'run';
+  const name = CREATURES[a.kind].name;
+  if (what === 'milk') {
+    g.spawnItem('milk', MAT.none, g.cellOf(u), 2, { sub: name });
+    a.milkAt = g.tick + DAY * 4;
+  } else {
+    g.spawnItem('wool', MAT.wool, g.cellOf(u), 2, { sub: name });
+    a.shearAt = g.tick + DAY * 10;
+  }
+  g.train(u, 'farm', 10);
+  return 'done';
+}
+
 /** 0 = bare, 1 = decent, 2 = fine: how nice the room around a cell is (smooth/engraved walls, furniture) */
 export function roomQuality(g: Game, cell: number): number {
   let v = 0;
@@ -1721,11 +1794,16 @@ function candidates(g: Game, u: Unit, labor: Labor): Cand[] {
       }
       for (const c of nearest(harvest, (c) => c, from, 3)) out.push(() => tryHarvest(g, u, c));
       for (const [z, c] of nearest(plant, (p) => p[1], from, 12)) out.push(inGroup('plant:' + z.crop, () => tryPlant(g, u, z, c)));
+      for (const a of g.units.values()) {
+        if (canMilk(g, a)) out.push(() => tryTend2(g, u, a, 'milk'));
+        if (canShear(g, a)) out.push(() => tryTend2(g, u, a, 'shear'));
+      }
       desigs();
       break;
     }
     case 'hunt':
       for (const a of g.units.values()) if (a.hunted && !a.dead) out.push(() => tryHunt(g, u, a));
+      for (const a of g.units.values()) if (a.train && !a.dead) out.push(() => tryTrain(g, u, a));
       break;
     case 'fish':
       for (const z of g.zones.values()) if (z.kind === 'fishing') out.push(() => tryFish(g, u, z));

@@ -4,7 +4,7 @@ import { BUILDINGS, CREATURES, ITEMS, RECIPES } from './defs';
 import { Game } from './game';
 import {
   DG_NAME, Try, assign, canWalk, endJob, isJob, tryBill, tryBuild, tryBury, tryDeconstruct, tryDesig, tryEquip, tryFeed, tryFish, tryHarvest, tryHaul, tryHunt, tryPlant,
-  tryPull, tryRescue, trySlaughter, tryTend,
+  tryPull, tryRescue, trySlaughter, tryTend, tryTend2, tryTrain,
 } from './jobs';
 import { downReason } from './life';
 import type { Job, Option, Unit } from './types';
@@ -48,7 +48,12 @@ export function optionsAt(g: Game, u: Unit, cell: number): Option[] {
     const reach: Try = g.w.canReach(here, cell, true) ? mkJob('attack', `Attacking ${name}`, cell, { u: o.id }) : 'no path to it';
     if (g.hostile(u, o)) add(`Attack ${name}`, CREATURES[o.kind].water ? 'it is in the water where no dwarf can follow' : reach);
     else if (o.faction === 'wild') add(`Hunt ${name}`, tryHunt(g, u, o));
-    else if (o.faction === 'fort') add(`Slaughter ${name}`, trySlaughter(g, u, o));
+    else if (o.faction === 'fort') {
+      if (o.kind === 'dog') add(`Train ${name} for war`, tryTrain(g, u, o));
+      if (CREATURES[o.kind].milk) add(`Milk ${name}`, tryTend2(g, u, o, 'milk'));
+      if (CREATURES[o.kind].wool) add(`Shear ${name}`, tryTend2(g, u, o, 'shear'));
+      add(`Slaughter ${name}`, trySlaughter(g, u, o));
+    }
   }
   // ---- designation
   const d = g.w.desig[cell];

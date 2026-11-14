@@ -240,6 +240,10 @@ export const ITEMS: Record<string, ItemDef> = {
   seed: I({ id: 'seed', name: 'seeds', cat: 'seeds', glyph: '·', value: 1 }),
   meat: I({ id: 'meat', name: 'meat', cat: 'food', glyph: '%', fg: '#d06060', value: 2, rots: true }),
   fish: I({ id: 'fish', name: 'fish', cat: 'food', glyph: 'α', fg: '#80c0e0', value: 2, rots: true }),
+  egg: I({ id: 'egg', name: 'egg', cat: 'food', glyph: 'o', fg: '#f0e8d0', value: 2, rots: true }),
+  milk: I({ id: 'milk', name: 'milk', cat: 'food', glyph: '~', fg: '#ffffff', value: 2 }),
+  cheese: I({ id: 'cheese', name: 'cheese', cat: 'food', glyph: '%', fg: '#f0d060', value: 6 }),
+  wool: I({ id: 'wool', name: 'wool', cat: 'cloth', glyph: '≈', fg: '#f0ece0', value: 3 }),
   flour: I({ id: 'flour', name: 'flour', cat: 'food', glyph: '░', fg: '#f0e8d0', value: 4 }),
   meal: I({ id: 'meal', name: 'prepared meal', cat: 'food', glyph: '%', fg: '#f0c060', value: 10 }),
   drink: I({ id: 'drink', name: 'drink', cat: 'drink', glyph: 'ö', fg: '#d0a040', value: 3 }),
@@ -303,14 +307,14 @@ export const LABOR_HELP: Record<Labor, string> = {
   mine: 'Dig, channel, carve stairs (needs a pick)',
   chop: 'Fell trees (needs an axe)',
   build: 'Construct buildings, walls, furniture; deconstruct',
-  farm: 'Plant, harvest, gather wild plants',
+  farm: 'Plant, harvest, gather wild plants, milk and shear livestock',
   brew: 'Brew drinks at the Still',
   cook: 'Cook meals, butcher animals',
   mason: 'Stone furniture, blocks, smoothing and engraving',
   carpenter: 'Wooden furniture, barrels',
   smith: 'Smelt ore, forge metal',
   craft: 'Crafts, gems, leather, cloth, mechanisms',
-  hunt: 'Hunt marked animals',
+  hunt: 'Hunt marked animals, train war dogs',
   fish: 'Fish at fishing zones',
   haul: 'Carry things to stockpiles, pull levers, bury the dead',
 };
@@ -486,6 +490,8 @@ export interface BuildingDef {
   machine?: boolean; // part of a power network
   power?: number; // machines: power produced (+) or needed to turn (-)
 }
+/** melee weapons that can be built into a weapon trap (picks are left for the miners) */
+export const TRAP_WEAPONS = Object.values(ITEMS).filter((i) => i.weapon && !i.weapon.ranged && i.tool !== 'pick').map((i) => i.id);
 const anyBuildMat: Ing = { type: ['boulder', 'block', 'log'], n: 1 };
 const B = (d: BuildingDef) => d;
 export const BUILDINGS: Record<string, BuildingDef> = {
@@ -494,6 +500,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   floor: B({ id: 'floor', name: 'Floor', w: 1, h: 1, glyphs: '+', fg: '#aaa', needs: [anyBuildMat], work: 50, menu: 'structure', tile: T.Floor, desc: 'A floor. Can bridge open space next to an existing floor.' }),
   stairs: B({ id: 'stairs', name: 'Stairs', w: 1, h: 1, glyphs: 'X', fg: '#aaa', needs: [anyBuildMat], work: 90, menu: 'structure', tile: T.Stair, desc: 'Up/down stairs. Connects to stairs directly above or below.' }),
   ramp: B({ id: 'ramp', name: 'Ramp', w: 1, h: 1, glyphs: '▲', fg: '#aaa', needs: [anyBuildMat], work: 70, menu: 'structure', tile: T.Ramp, desc: 'A ramp up to the level above (needs a wall next to it).' }),
+  fortification: B({ id: 'fortification', name: 'Fortification', w: 1, h: 1, glyphs: '╬', fg: '#bbb', needs: [anyBuildMat], work: 90, menu: 'structure', blocks: true, desc: 'A wall with arrow slits. Nothing walks through it, but bolts fly through both ways: put marksdwarves behind a row of these. Drag to lay a line.' }),
   // furniture
   bed: B({ id: 'bed', name: 'Bed', w: 1, h: 1, glyphs: 'Θ', fg: '#c79a55', needs: [{ type: 'bed', n: 1 }], work: 30, menu: 'furniture', item: 'bed', desc: 'Dwarves sleep here. In a hospital zone it is a hospital bed.' }),
   table: B({ id: 'table', name: 'Table', w: 1, h: 1, glyphs: '╤', fg: '#ccc', needs: [{ type: 'table', n: 1 }], work: 30, menu: 'furniture', item: 'table', desc: 'Dwarves hate eating without a table.' }),
@@ -529,6 +536,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   lever: B({ id: 'lever', name: 'Lever', w: 1, h: 1, glyphs: 'ò', fg: '#e0e0e0', needs: [{ type: 'mechanism', n: 1 }], work: 80, menu: 'machines', desc: 'Link it to floodgates, bridges and doors, then order it pulled.' }),
   floodgate: B({ id: 'floodgate', name: 'Floodgate', w: 1, h: 1, glyphs: 'X', fg: '#ccc', needs: [{ type: 'floodgate', n: 1 }, { type: 'mechanism', n: 1 }], work: 80, menu: 'machines', item: 'floodgate', blocks: true, desc: 'Blocks water and magma until opened by a lever.' }),
   bridge: B({ id: 'bridge', name: 'Drawbridge', w: 1, h: 1, glyphs: '═', fg: '#ccc', needs: [{ type: ['boulder', 'block', 'log'], n: 1 }, { type: 'mechanism', n: 1 }], work: 100, menu: 'machines', desc: 'Drag to size. A walkable deck over open space. A lever raises it: the deck is gone and anything on it falls. When it slams back down it obliterates whatever is standing underneath.' }),
+  weapontrap: B({ id: 'weapontrap', name: 'Weapon Trap', w: 1, h: 1, glyphs: '^', fg: '#ff8060', needs: [{ type: 'mechanism', n: 1 }, { type: TRAP_WEAPONS, n: 1 }], work: 80, menu: 'machines', desc: 'Strikes every hostile that steps on it with the weapon built into it, again and again. A corridor of these is the classic answer to a siege. Needs a mechanism and any melee weapon.' }),
   cagetrap: B({ id: 'cagetrap', name: 'Cage Trap', w: 1, h: 1, glyphs: '^', fg: '#e0e060', needs: [{ type: 'mechanism', n: 1 }, { type: 'cage', n: 1 }], work: 80, menu: 'machines', desc: 'Captures the first hostile to step on it. Any hostile. Yes, even that one.' }),
   stonetrap: B({ id: 'stonetrap', name: 'Stone-fall Trap', w: 1, h: 1, glyphs: '^', fg: '#c0c0c0', needs: [{ type: 'mechanism', n: 1 }, { type: 'boulder', n: 1 }], work: 80, menu: 'machines', desc: 'Drops a boulder on the first hostile to step on it. Single use.' }),
   // ---- machinery: sources, shafts and things that need turning
@@ -554,7 +562,7 @@ export interface Recipe {
   special?: 'butcher' | 'brew' | 'cook' | 'smelt';
 }
 /** what can go into a cooked meal */
-export const COOKABLE = ['plant', 'meat', 'fish', 'flour'];
+export const COOKABLE = ['plant', 'meat', 'fish', 'flour', 'egg', 'milk', 'cheese'];
 const R: Recipe[] = [];
 const wood = (id: string, name: string, n = 1, work = 220) =>
   R.push({ id: 'c_' + id, name: name, shop: ['carpenter'], labor: 'carpenter', work, in: [{ type: 'log', n: 1 }], out: [{ type: id, n }] });
@@ -594,6 +602,8 @@ R.push(
   { id: 'brew', name: 'Brew drink', shop: ['still'], labor: 'brew', work: 260, in: [{ type: 'plant', n: 1, tag: 'brewable' }, { type: 'barrel', n: 1, tag: 'emptybarrel' }], out: [], special: 'brew' },
   { id: 'meal', name: 'Cook easy meal', shop: ['kitchen'], labor: 'cook', work: 220, in: [{ type: COOKABLE, n: 2, tag: 'cookable' }], out: [], special: 'cook' },
   { id: 'feast', name: 'Cook lavish meal', shop: ['kitchen'], labor: 'cook', work: 360, in: [{ type: COOKABLE, n: 4, tag: 'cookable' }], out: [], special: 'cook' },
+  { id: 'cheese', name: 'Make cheese', shop: ['kitchen'], labor: 'cook', work: 200, in: [{ type: 'milk', n: 1 }], out: [{ type: 'cheese', n: 2, mat: 'none' }] },
+  { id: 'weave_wool', name: 'Weave wool cloth', shop: ['loom'], labor: 'craft', work: 240, in: [{ type: 'wool', n: 1 }], out: [{ type: 'cloth', n: 2, mat: 'wool' }] },
   { id: 'mill_wheat', name: 'Mill cave wheat into flour', shop: ['millstone'], labor: 'cook', work: 160, in: [{ type: 'plant', n: 1, sub: 'cave_wheat' }], out: [{ type: 'flour', n: 4, mat: 'none', sub: 'dwarven wheat flour' }, { type: 'seed', n: 1, mat: 'none', sub: 'cave_wheat' }] },
   { id: 'mill_sugar', name: 'Mill sweet pods into sugar', shop: ['millstone'], labor: 'cook', work: 160, in: [{ type: 'plant', n: 1, sub: 'sweet_pod' }], out: [{ type: 'flour', n: 4, mat: 'none', sub: 'dwarven sugar' }, { type: 'seed', n: 1, mat: 'none', sub: 'sweet_pod' }] },
   { id: 'butcher', name: 'Butcher an animal', shop: ['butcher'], labor: 'cook', work: 200, in: [{ type: 'corpse', n: 1, tag: 'butcherable' }], out: [], special: 'butcher' },

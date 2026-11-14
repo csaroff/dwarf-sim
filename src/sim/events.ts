@@ -230,6 +230,7 @@ function caravanArrive(g: Game) {
   add('drink', MAT.oak, 5, { sub: 'dwarven ale' });
   add('meal', MAT.none, 10, { sub: 'salted fish roast' });
   add('meat', MAT.flesh, 10, { sub: 'horse' });
+  add('cheese', MAT.none, 8, { sub: r.pick(['goat', 'cow', 'sheep']) });
   for (const s of ['plump_helmet', 'pig_tail', 'cave_wheat', 'sweet_pod']) add('seed', MAT.none, 5, { sub: s });
   for (const s of ['rope_reed', 'longland_grass', 'quarry_bush', 'dimple_cup']) if (r.chance(0.6)) add('seed', MAT.none, 5, { sub: s });
   add('log', MAT.oak, 10);
@@ -528,6 +529,21 @@ function nature(g: Game) {
     }
     if (it.type === 'corpse' && it.dwarf && g.onGround(it) && g.tick - it.born > TICKS_DAY * 3 && g.tick % (TICKS_DAY / 2) < 100) {
       for (const d of g.dwarves()) if (dist(g.cellOf(d), g.cellOf(it)) < 12) g.think(d, 'saw the rotting, unburied body of a friend', -5, 2);
+    }
+  }
+  // livestock: birds lay, and where there are two of a kind there will sooner or later be three
+  const tame = Array.from(g.units.values()).filter((u) => u.faction === 'fort' && !u.isDwarf && !u.dead && u.state !== 'caged');
+  if (g.count((i) => i.type === 'egg') < 40) for (const u of tame) if (CREATURES[u.kind].eggs && g.rng.chance(0.02)) g.spawnItem('egg', MAT.none, g.cellOf(u), 1, { sub: CREATURES[u.kind].name });
+  if (tame.length < 45 && g.rng.chance(0.012)) {
+    const byKind = new Map<string, Unit[]>();
+    for (const u of tame) byKind.set(u.kind === 'war_dog' ? 'dog' : u.kind, [...(byKind.get(u.kind === 'war_dog' ? 'dog' : u.kind) || []), u]);
+    const pairs = Array.from(byKind.entries()).filter(([, l]) => l.length >= 2 && l.length < 8);
+    if (pairs.length) {
+      const [kind, l] = g.rng.pick(pairs);
+      const mother = g.rng.pick(l);
+      const baby = g.addUnit(kind, g.cellOf(mother), 'fort');
+      baby.name = g.rng.pick(FIRST_NAMES);
+      g.say(CREATURES[kind].eggs ? `A ${CREATURES[kind].name} chick has hatched.` : `${mother.name} the ${CREATURES[mother.kind].name} has given birth to a ${CREATURES[kind].name === 'sheep' ? 'lamb' : 'young ' + CREATURES[kind].name}.`, 'info', g.cellOf(mother));
     }
   }
   let wild = 0, cav = 0;

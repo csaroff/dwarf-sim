@@ -540,9 +540,22 @@ export class Renderer {
         box(0.5, 0.5, 7, 7, shade(fg, b.open ? 0.22 : 0.6));
         for (let k = 0; k < 3; k++) box(2 + k * 2, 0.5, 0.4, 7, 'rgba(0,0,0,0.4)');
         return true;
-      case 'cagetrap': case 'stonetrap':
+      case 'fortification':
+        box(0, 0, 8, 8, shade(fg, 0.5));
+        for (let k = 0; k < 2; k++) {
+          box(1.4 + k * 3.6, 1.5, 1.6, 5, '#0c0c10');
+          box(0.6 + k * 3.6, 3.2, 3.2, 1.6, '#0c0c10');
+        }
+        box(0, 0, 8, 0.5, shade(fg, 0.75));
+        return true;
+      case 'cagetrap': case 'stonetrap': case 'weapontrap':
         box(1, 1, 6, 6, '#3a3630');
-        box(1.5, 1.5, 5, 5, b.type === 'cagetrap' ? '#6a6430' : '#5a5650');
+        box(1.5, 1.5, 5, 5, b.type === 'cagetrap' ? '#6a6430' : b.type === 'weapontrap' ? '#6a3a30' : '#5a5650');
+        if (b.type === 'weapontrap') {
+          this.poly(c, px, py, [2, 6, 2.8, 6, 6.2, 2.2, 6, 1.8, 5.6, 2], '#e0e4f0');
+          box(1.6, 5.4, 1.6, 0.7, '#c09050');
+          return true;
+        }
         if (b.caged) for (let k = 0; k < 4; k++) box(1.6 + k * 1.5, 1, 0.5, 6, '#e0e060');
         else this.poly(c, px, py, [4, 2.4, 5.8, 5.6, 2.2, 5.6], b.type === 'cagetrap' ? '#e0e060' : '#c8c8c8');
         return true;

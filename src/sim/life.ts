@@ -3,7 +3,7 @@ import { BUILDINGS, CREATURES, ITEMS, MAT, MATS, PARTS, PART_W, TICKS_DAY } from
 import { Game, MOON_TICKS } from './game';
 import {
   RUN, assign, canWalk, endJob, explainTask, findWork, hook, isJob, moveDelay, needsFeeding, needsRest, needsTending, runJob, tryDrink, tryEat, tryRescue, tryRest,
-  tryDress, trySleep, tryTend, walk,
+  tryDress, trySleep, tryTend, tryTend2, tryTrain, walk,
 } from './jobs';
 import type { Item, Job, Unit, Wound } from './types';
 import { DIRS8, X, Y, Z, cheb, dist, idx, inMap } from './world';
@@ -797,6 +797,15 @@ function checkTrap(g: Game, u: Unit) {
     u.job = null;
     g.say(`${cap(g.unitName(u))} has been caught in a cage trap!`, 'good', g.cellOf(u));
     g.w.version++;
+  } else if (b.type === 'weapontrap') {
+    const wpn = b.mats.map((id) => g.items.get(id)).find((it) => it && ITEMS[it.type].weapon);
+    if (!wpn) return;
+    const wd = ITEMS[wpn.type].weapon!;
+    const dmg = wd.dmg * (MATS[wpn.mat].weapon ?? 0.7) * (1 + wpn.q * 0.1) * (1.2 + g.rng.next() * 0.8);
+    u.hp -= dmg;
+    addWound(g, u, g.rng.pick([1, 1, 2, 5, 6, 3, 4]), dmg > u.maxHp * 0.3 ? 2 : 1, wd.type);
+    g.say(`A weapon trap ${wd.verb} ${g.unitName(u)} with its ${g.itemName(wpn, true)}!`, 'good', g.cellOf(u));
+    if (u.hp <= 0) killUnit(g, u, 'been cut down by a weapon trap');
   } else if (b.type === 'stonetrap') {
     const dmg = 22 + g.rng.int(20);
     u.hp -= dmg;
@@ -1012,6 +1021,14 @@ export function explainUnit(g: Game, u: Unit): Explain {
     } else e.status = u.faction === 'merchant' ? 'Trading' : 'Wandering';
     if (u.hunted) e.lines.push('Marked for hunting. ' + explainTask(g, 'hunt', (d) => (d.labors.hunt ? 'ok' : 'x'), 'u' + u.id));
     if (u.slaughter) e.lines.push('Marked for slaughter.');
+    if (u.train) e.lines.push('War training — ' + explainTask(g, 'hunt', (d) => tryTrain(g, d, u), 'u' + u.id));
+    if (u.faction === 'fort') {
+      const d = CREATURES[u.kind];
+      const days = (t: number) => (Math.max(0, t - g.tick) / TICKS_DAY).toFixed(1);
+      if (d.milk) e.lines.push(g.tick >= (u.milkAt || 0) ? 'Ready to be milked — ' + explainTask(g, 'farm', (f) => tryTend2(g, f, u, 'milk'), 'u' + u.id) : `Milked recently: ready again in ${days(u.milkAt!)} days.`);
+      if (d.wool) e.lines.push(g.tick >= (u.shearAt || 0) ? 'Ready to be shorn — ' + explainTask(g, 'farm', (f) => tryTend2(g, f, u, 'shear'), 'u' + u.id) : `Shorn recently: wool grows back in ${days(u.shearAt!)} days.`);
+      if (d.eggs) e.lines.push('Lays eggs (cook them at the Kitchen).');
+    }
     return e;
   }
   if (u.carriedBy) {
