@@ -469,6 +469,11 @@ export function tryDesig(g: Game, u: Unit, cell: number): Try {
       if (w.dangerous(cell) || DIRS8.some(([dx, dy]) => inMap(X(cell) + dx, Y(cell) + dy, Z(cell)) && w.dangerous(cell + dx + dy * 96))) return 'the area is flooded';
       return 'nowhere to stand next to it yet: it becomes reachable as digging gets closer (stairs need stairs directly above or below, or an open tile beside them)';
     }
+    // a stairwell that broke through a cavern roof: the gap is open air, which cannot be carved
+    for (let k = 1, up = cell + WH; k <= 3 && up < w.tile.length; k++, up += WH) {
+      if (w.tile[up] !== T.Open) break;
+      if (w.tile[up + WH] === T.Stair || k > 1) return `no path to it: there is open air above (level ${Z(up) - g.embark.z}). Stairs cannot be carved out of air — construct them there instead (Build > Structure > Stairs) to join the stairwell up`;
+    }
     return 'no path to it (blocked off, or on a level with no stairs/ramp connection)';
   }
   const what = d === DG.Chop ? `${PLANTS[w.plant[cell]].name} tree` : d === DG.Gather ? PLANTS[w.plant[cell]].name : !w.revealed(cell) ? 'unknown stone' : MATS[w.mat[cell]].name;

@@ -73,6 +73,11 @@ export function upkeep(g: Game) {
     }
   }
   queue(g);
+  // where the stairwell broke into open air (a cavern roof), build stairs across the gap
+  for (let k = 0; k < 16; k++) {
+    const c = idx(x - 3, y - 3, z - k);
+    if (g.w.tile[c] === T.Open && g.w.revealed(c) && !g.bAt.has(c)) placeBuilding(g, 'stairs', x - 3, y - 3, z - k);
+  }
   // hunt game, not bears
   for (const a of g.units.values()) if (a.faction === 'wild' && ['deer', 'boar', 'groundhog'].includes(a.kind)) a.hunted = true;
   // a labor nobody alive has (the game raises an alert for this): hand it to the least busy dwarf

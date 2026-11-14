@@ -197,6 +197,25 @@ describe('z-levels and mining', () => {
     expect(g.w.revealed(deep + 1)).toBe(true);
   });
 
+  test('a stairwell that breaks into open air says to build stairs across the gap', () => {
+    const g = flatGame();
+    const miner = dwarf(g, 40, 40, ['mine', 'build']);
+    give(g, miner, 'pick', 'pick');
+    // a cavern two levels down: air at 18, its floor at 17
+    room(g, 38, 38, 42, 42, 17);
+    for (let y = 38; y <= 42; y++) for (let x = 38; x <= 42; x++) g.w.setTile(cell(x, y, 18), T.Open);
+    for (const z of [20, 19, 17]) g.designate(cell(40, 40, z), DG.Stair);
+    run(g, 2500, () => g.w.tile[cell(40, 40, 19)] === T.Stair);
+    run(g, 100);
+    expect(explainTask(g, 'mine', (u) => tryDesig(g, u, cell(40, 40, 17)), 'd' + cell(40, 40, 17))).toMatch(/open air above.*Build > Structure > Stairs/);
+
+    // constructed stairs in the gap join the two halves
+    g.spawnItem('boulder', MAT.granite, cell(41, 40), 1);
+    expect(placeBuilding(g, 'stairs', 40, 40, 18)).toBeTruthy();
+    run(g, 4000, () => g.w.tile[cell(40, 40, 17)] === T.Stair);
+    expect(g.w.tile[cell(40, 40, 17)]).toBe(T.Stair);
+  });
+
   test('channelling makes a hole with a ramp below', () => {
     const g = flatGame();
     const miner = dwarf(g, 40, 40, ['mine']);
