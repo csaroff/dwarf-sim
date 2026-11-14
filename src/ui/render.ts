@@ -1,11 +1,14 @@
-// Canvas renderer: one glyph per tile, Dwarf Fortress style.
+// Canvas renderer. Two looks: drawn tiles (default) and classic one-glyph-per-tile ASCII (G toggles).
+// Tile art is drawn procedurally on an 8×8 grid per tile, so there are no image assets.
 import { BUILDINGS, CREATURES, D, F, H, ITEMS, MATS, PLANTS, T, W, plantOf } from '../sim/defs';
 import { Game } from '../sim/game';
 import { DG, ripe } from '../sim/jobs';
-import type { Unit } from '../sim/types';
+import { hash2 } from '../sim/rng';
+import type { Building, Item, Unit } from '../sim/types';
 import { WH, idx } from '../sim/world';
 
 const FONT = '"DejaVu Sans Mono", Menlo, Consolas, "Apple Symbols", "Segoe UI Symbol", monospace';
+type Ctx = CanvasRenderingContext2D;
 
 const shadeCache = new Map<string, string>();
 /** darken (f < 1) or lighten (f > 1) a hex colour */
@@ -20,14 +23,35 @@ export function shade(hex: string, f: number): string {
   shadeCache.set(key, v);
   return v;
 }
+/** shade with the factor snapped to a few steps, so per-tile variation does not flood the cache */
+const tint = (hex: string, f: number) => shade(hex, Math.round(f * 25) / 25);
 
 const ZONE_TINT: Record<string, string> = {
-  stockpile: 'rgba(214,190,90,0.16)', farm: 'rgba(150,110,60,0.30)', meeting: 'rgba(90,140,230,0.16)', hospital: 'rgba(240,120,160,0.18)',
+  stockpile: 'rgba(214,190,90,0.16)', farm: 'rgba(150,110,60,0.22)', meeting: 'rgba(90,140,230,0.16)', hospital: 'rgba(240,120,160,0.18)',
   fishing: 'rgba(80,200,220,0.20)', pasture: 'rgba(110,200,90,0.14)', burrow: 'rgba(200,200,200,0.1)',
 };
 const DESIG_TINT = ['', 'rgba(255,190,40,0.30)', 'rgba(255,120,40,0.32)', 'rgba(255,230,90,0.30)', 'rgba(255,230,90,0.30)', 'rgba(255,150,40,0.38)', 'rgba(120,255,120,0.30)', 'rgba(140,200,255,0.30)', 'rgba(200,140,255,0.30)', 'rgba(255,80,80,0.35)'];
 const DESIG_CH = ['', '', '▼', 'X', '▲', '', '', '', '', 'x'];
 const WATER_BG = ['', '#0c2440', '#0d2a4c', '#0e3058', '#0f3664', '#103c70', '#11427c', '#124888'];
+
+// 8×8 sprites. H hat/hair, S skin, E eye, B beard, C clothes, L boots
+const SPRITES: Record<string, string[]> = {
+  dwarf: ['..HHHH..', '.HHHHHH.', '.SESSES.', '.BSSSSB.', '.BBBBBB.', 'CCBBBBCC', '.CCCCCC.', '.LL..LL.'],
+  goblin: ['S......S', 'SSHHHHSS', '.SESSES.', '.SSSSSS.', '..SSSS..', 'CCCCCCCC', '.CCCCCC.', '.LL..LL.'],
+};
+const BEARDS = ['#b0642a', '#7a4a22', '#d8d0c0', '#3a2a20', '#c89040'];
+/** which sprite and colours a creature is drawn with (null: a lettered token) */
+function spriteOf(u: Unit): { map: string[]; pal: Record<string, string> } | null {
+  switch (u.kind) {
+    case 'dwarf': return { map: SPRITES.dwarf, pal: { H: u.fg, S: '#e8b890', E: '#201810', B: BEARDS[u.id % 5], C: shade(u.fg, 0.5), L: '#3a2c20' } };
+    case 'merchant': return { map: SPRITES.dwarf, pal: { H: '#e0c040', S: '#e8b890', E: '#201810', B: '#7a4a22', C: '#7a5a9a', L: '#3a2c20' } };
+    case 'goblin': return { map: SPRITES.goblin, pal: { H: '#2a2a2a', S: '#60c040', E: '#ff3020', C: '#5a3a2a', L: '#2a2018' } };
+    case 'kobold': return { map: SPRITES.goblin, pal: { H: '#6a4a2a', S: '#e0a060', E: '#201810', C: '#4a4a3a', L: '#2a2018' } };
+    case 'troll': return { map: SPRITES.goblin, pal: { H: '#3a6a6a', S: '#60a0a0', E: '#ffe040', C: '#3a5a5a', L: '#2a4040' } };
+    case 'demon': return { map: SPRITES.goblin, pal: { H: '#801010', S: '#ff3020', E: '#ffe040', C: '#801010', L: '#400808' } };
+  }
+  return null;
+}
 
 export interface Overlay {
   hover: number;
@@ -46,17 +70,23 @@ interface Look {
 const L: Look = { bg: '#000', fg: '#000', ch: '' };
 
 export class Renderer {
-  ctx: CanvasRenderingContext2D;
+  ctx: Ctx;
   terrain = document.createElement('canvas');
-  tctx: CanvasRenderingContext2D;
+  tctx: Ctx;
   key = '';
   cam = { x: 0, y: 0, z: 0, tile: 18 };
   cw = 0;
   ch = 0;
+  ascii = localStorage.getItem('ascii') === '1';
 
   constructor(public canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d')!;
     this.tctx = this.terrain.getContext('2d')!;
+  }
+  setAscii(on: boolean) {
+    this.ascii = on;
+    localStorage.setItem('ascii', on ? '1' : '0');
+    this.key = '';
   }
   resize() {
     const dpr = window.devicePixelRatio || 1;
@@ -103,7 +133,43 @@ export class Renderer {
     this.clamp();
   }
 
-  // ------------------------------------------------------------ tile appearance
+  // ------------------------------------------------------------ drawing helpers
+  private glyph(c: Ctx, ch: string, fg: string, px: number, py: number) {
+    if (!ch || ch === ' ') return;
+    c.fillStyle = fg;
+    c.fillText(ch, px + this.cam.tile / 2, py + this.cam.tile / 2 + 1);
+  }
+  /** a glyph at a fraction of the tile size, centred at (fx, fy) in tile units 0..1 */
+  private mini(c: Ctx, ch: string, fg: string, px: number, py: number, size: number, fx: number, fy: number) {
+    const s = this.cam.tile;
+    const font = c.font;
+    c.font = `bold ${Math.round(s * size)}px ${FONT}`;
+    c.fillStyle = fg;
+    c.fillText(ch, px + s * fx, py + s * fy);
+    c.font = font;
+  }
+  /** a rectangle in 8×8 art units */
+  private box(c: Ctx, px: number, py: number, ax: number, ay: number, aw: number, ah: number, col: string) {
+    const u = this.cam.tile / 8;
+    c.fillStyle = col;
+    c.fillRect(px + Math.round(ax * u), py + Math.round(ay * u), Math.max(1, Math.round(aw * u)), Math.max(1, Math.round(ah * u)));
+  }
+  private disc(c: Ctx, px: number, py: number, ax: number, ay: number, r: number, col: string, ry = r) {
+    const u = this.cam.tile / 8;
+    c.fillStyle = col;
+    c.beginPath();
+    c.ellipse(px + ax * u, py + ay * u, r * u, ry * u, 0, 0, Math.PI * 2);
+    c.fill();
+  }
+  private poly(c: Ctx, px: number, py: number, pts: number[], col: string) {
+    const u = this.cam.tile / 8;
+    c.fillStyle = col;
+    c.beginPath();
+    for (let k = 0; k < pts.length; k += 2) c[k ? 'lineTo' : 'moveTo'](px + pts[k] * u, py + pts[k + 1] * u);
+    c.fill();
+  }
+
+  // ------------------------------------------------------------ ASCII look
   private look(g: Game, i: number): Look {
     const w = g.w;
     const t = w.tile[i];
@@ -185,12 +251,184 @@ export class Renderer {
       }
     }
   }
-  private glyph(c: CanvasRenderingContext2D, ch: string, fg: string, px: number, py: number) {
-    if (!ch || ch === ' ') return;
-    c.fillStyle = fg;
-    c.fillText(ch, px + this.cam.tile / 2, py + this.cam.tile / 2 + 1);
+
+  // ------------------------------------------------------------ tile art
+  private art(g: Game, c: Ctx, i: number, px: number, py: number) {
+    const w = g.w;
+    const s = this.cam.tile;
+    const t = w.tile[i];
+    const m = MATS[w.mat[i]];
+    const f = w.flag[i];
+    const x = i % W, y = Math.floor(i / W) % H, z = Math.floor(i / WH);
+    const r = (k: number) => hash2(x, y, k + z * 31); // stable per-tile randomness
+    const P = (k: number) => Math.floor(r(k) * 6); // a position that leaves room for a 2-wide mark
+    const box = (ax: number, ay: number, aw: number, ah: number, col: string) => this.box(c, px, py, ax, ay, aw, ah, col);
+    const phase = Math.floor(performance.now() / 500);
+
+    // ---- fluids
+    if (t !== T.Wall && w.magma[i] > 0) {
+      c.fillStyle = w.magma[i] >= 4 ? '#b02a00' : '#7a2008';
+      c.fillRect(px, py, s, s);
+      for (let k = 0; k < 3; k++) box(Math.floor(hash2(x * 3 + k, y, phase + k * 7) * 6), Math.floor(hash2(x, y * 3 + k, phase + k * 11) * 7), 2, 1, k ? '#ff8a1c' : '#ffd24a');
+      return;
+    }
+    if (t !== T.Wall && w.water[i] > 0) {
+      const lvl = w.water[i];
+      c.fillStyle = WATER_BG[lvl];
+      c.fillRect(px, py, s, s);
+      for (let k = 0; k < 2; k++) box((P(k) + phase + k * 3) % 7, 1 + k * 4 + Math.floor(r(k + 5) * 2), 2, 0.6, lvl >= 4 ? '#3f78c4' : '#2f5c9c');
+      if (lvl < 7) this.mini(c, String(lvl), 'rgba(140,190,255,0.55)', px, py, 0.6, 0.5, 0.56);
+      return;
+    }
+
+    // ---- walls
+    if (t === T.Wall) {
+      if (f & F.Built) {
+        c.fillStyle = shade(m.fg, 0.42);
+        c.fillRect(px, py, s, s);
+        const mortar = shade(m.fg, 0.24);
+        for (let row = 0; row < 3; row++) {
+          box(0, row * 2.67, 8, 0.4, mortar);
+          box(row % 2 ? 2 : 0, row * 2.67, 0.4, 2.67, mortar);
+          box(row % 2 ? 6 : 4, row * 2.67, 0.4, 2.67, mortar);
+        }
+      } else if (f & F.Smooth) {
+        c.fillStyle = shade(m.fg, 0.45);
+        c.fillRect(px, py, s, s);
+        box(0, 0, 8, 0.4, shade(m.fg, 0.62));
+        box(0, 0, 0.4, 8, shade(m.fg, 0.62));
+        box(0, 7.6, 8, 0.4, shade(m.fg, 0.28));
+        box(7.6, 0, 0.4, 8, shade(m.fg, 0.28));
+        if (f & F.Engraved) {
+          const e = shade(m.fg, 0.8);
+          this.poly(c, px, py, [4, 1.5, 6.5, 4, 4, 6.5, 1.5, 4], e);
+          this.poly(c, px, py, [4, 2.5, 5.5, 4, 4, 5.5, 2.5, 4], shade(m.fg, 0.45));
+        }
+      } else {
+        c.fillStyle = tint(m.bg, 0.9 + r(1) * 0.2);
+        c.fillRect(px, py, s, s);
+        if (m.kind === 'soil') {
+          for (let k = 0; k < 3; k++) box(P(k + 2), 1 + k * 2.4, 3, 0.5, shade(m.bg, k % 2 ? 1.3 : 0.7));
+        } else {
+          for (let k = 0; k < 3; k++) box(P(k + 2), P(k + 6) + 1, k ? 2 : 1, 1, shade(m.bg, k % 2 ? 1.3 : 0.72));
+          if (m.kind === 'ore') {
+            for (let k = 0; k < 3; k++) {
+              const ax = P(k + 10), ay = P(k + 14);
+              box(ax, ay, 2, 2, shade(m.fg, 0.8));
+              box(ax, ay, 1, 1, shade(m.fg, 1.25));
+            }
+          } else if (m.kind === 'gem') {
+            for (let k = 0; k < 2; k++) {
+              const ax = 1.5 + P(k + 10) * 0.8, ay = 1.5 + P(k + 14) * 0.8;
+              this.poly(c, px, py, [ax, ay - 1.3, ax + 1.3, ay, ax, ay + 1.3, ax - 1.3, ay], m.fg);
+              box(ax - 0.3, ay - 0.6, 0.6, 0.6, '#ffffff');
+            }
+          }
+        }
+      }
+      // a wall next to open ground shows its face: that is what gives tunnels their depth
+      const open = (dx: number, dy: number) => {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) return false;
+        const n = i + dx + dy * W;
+        return (w.flag[n] & F.Revealed) !== 0 && w.tile[n] !== T.Wall;
+      };
+      const e = Math.max(1, Math.round(s / 12));
+      if (open(0, 1)) {
+        c.fillStyle = 'rgba(0,0,0,0.38)';
+        c.fillRect(px, py + Math.round(s * 0.68), s, s - Math.round(s * 0.68));
+        c.fillStyle = 'rgba(255,255,255,0.14)';
+        c.fillRect(px, py + Math.round(s * 0.68), s, e);
+      }
+      if (open(0, -1)) {
+        c.fillStyle = 'rgba(255,255,255,0.2)';
+        c.fillRect(px, py, s, e);
+      }
+      if (open(-1, 0)) {
+        c.fillStyle = 'rgba(255,255,255,0.12)';
+        c.fillRect(px, py, e, s);
+      }
+      if (open(1, 0)) {
+        c.fillStyle = 'rgba(0,0,0,0.32)';
+        c.fillRect(px + s - e, py, e, s);
+      }
+      return;
+    }
+
+    // ---- the ground under floors, ramps, stairs and trees
+    const p = PLANTS[w.plant[i]];
+    const crop = t === T.Floor ? g.crops.get(i) : undefined;
+    const paved = (f & (F.Built | F.Smooth)) !== 0;
+    const green = t === T.Tree ? (p.under ? PLANTS[2] : PLANTS[1]) : !crop && w.plant[i] ? (p.kind === 'grass' ? p : PLANTS[1]) : null;
+    if (green) {
+      c.fillStyle = tint(green.fg, 0.36 + r(1) * 0.08);
+      c.fillRect(px, py, s, s);
+      for (let k = 0; k < 2; k++) box(P(k + 2) + 1, P(k + 4) + 1, 0.6, 1.6, shade(green.fg, 0.6));
+    } else if (paved) {
+      c.fillStyle = shade(m.fg, 0.3);
+      c.fillRect(px, py, s, s);
+      box(0, 0, 8, 0.4, 'rgba(0,0,0,0.3)');
+      box(0, 0, 0.4, 8, 'rgba(0,0,0,0.3)');
+      if (f & F.Engraved) {
+        this.poly(c, px, py, [4, 1.5, 6.5, 4, 4, 6.5, 1.5, 4], shade(m.fg, 0.55));
+        this.poly(c, px, py, [4, 2.5, 5.5, 4, 4, 5.5, 2.5, 4], shade(m.fg, 0.3));
+      }
+    } else if (m.kind === 'soil' || crop) {
+      c.fillStyle = tint(m.kind === 'soil' ? m.bg : '#3a2a1a', 0.72 + r(1) * 0.12);
+      c.fillRect(px, py, s, s);
+      for (let k = 0; k < 2; k++) box(P(k + 2) + 1, P(k + 4) + 1, 1, 0.6, shade(m.kind === 'soil' ? m.bg : '#3a2a1a', k ? 1.1 : 0.5));
+    } else {
+      c.fillStyle = f & F.Mud ? '#33261a' : tint(m.bg, 0.52 + r(1) * 0.08);
+      c.fillRect(px, py, s, s);
+      box(P(2) + 1, P(3) + 1, 1, 1, shade(m.bg, 0.85));
+      box(P(4), P(5) + 1, 2, 0.5, shade(m.bg, 0.32));
+    }
+
+    switch (t) {
+      case T.Tree:
+        if (p.id === 'pine') {
+          box(3.5, 6, 1, 2, '#5a3e22');
+          this.poly(c, px, py, [4, 2.2, 7.6, 7, 0.4, 7], shade(p.fg, 0.6));
+          this.poly(c, px, py, [4, 0.3, 6.8, 4.6, 1.2, 4.6], shade(p.fg, 0.85));
+        } else if (p.id === 'tower_cap') {
+          box(3.2, 3, 1.6, 5, '#b8b0a0');
+          this.disc(c, px, py, 4, 3, 3.6, shade(p.fg, 0.7), 2.3);
+          this.disc(c, px, py, 3.6, 2.5, 2.6, p.fg, 1.4);
+        } else {
+          box(3.5, 5.5, 1, 2.5, '#5a3e22');
+          this.disc(c, px, py, 4, 3.8, 3.5, shade(p.fg, 0.6));
+          this.disc(c, px, py, 3.3, 3, 2.1, shade(p.fg, 0.9));
+        }
+        break;
+      case T.Ramp: {
+        const col = green ? green.fg : m.fg;
+        this.poly(c, px, py, [4, 1, 7.2, 7, 0.8, 7], shade(col, green ? 0.62 : 0.6));
+        this.poly(c, px, py, [4, 1, 7.2, 7, 4, 7], 'rgba(0,0,0,0.28)');
+        break;
+      }
+      case T.Stair: {
+        const col = f & F.Built ? m.fg : '#c8c8c8';
+        for (let k = 0; k < 4; k++) box(1, k * 2, 6, 1.7, shade(col, 0.95 - k * 0.2));
+        break;
+      }
+      default:
+        if (crop) {
+          const cp = plantOf(crop.plant);
+          for (let k = 0; k < 3; k++) box(0, 1.2 + k * 2.6, 8, 0.5, 'rgba(0,0,0,0.3)');
+          if (ripe(g, i)) {
+            box(3.6, 4, 0.8, 3, '#d8d0b8');
+            this.disc(c, px, py, 4, 3.6, 2.4, cp.fg, 1.6);
+          } else box(3.6, 5, 0.8, 1.8, shade(cp.fg, 0.7));
+        } else if (p.kind === 'shrub') {
+          this.disc(c, px, py, 4, 4.4, 2.8, '#2c6a2c', 2.3);
+          box(2.6, 3.4, 1, 1, p.fg);
+          box(4.6, 4, 1, 1, p.fg);
+          box(3.4, 5, 1, 1, p.fg);
+        }
+    }
   }
-  private cell(g: Game, c: CanvasRenderingContext2D, i: number, px: number, py: number, depth: number) {
+
+  private cell(g: Game, c: Ctx, i: number, px: number, py: number, depth: number) {
     const w = g.w;
     const s = this.cam.tile;
     if (!(w.flag[i] & F.Revealed)) {
@@ -206,10 +444,125 @@ export class Renderer {
       c.fillRect(px, py, s, s);
       return;
     }
+    if (!this.ascii) return this.art(g, c, i, px, py);
     const l = this.look(g, i);
     c.fillStyle = l.bg;
     c.fillRect(px, py, s, s);
     this.glyph(c, l.ch, l.fg, px, py);
+  }
+
+  /** drawn furniture for one-tile buildings; false = no art for this type, use the glyph */
+  private furniture(c: Ctx, b: Building, px: number, py: number, fg: string): boolean {
+    const box = (ax: number, ay: number, aw: number, ah: number, col: string) => this.box(c, px, py, ax, ay, aw, ah, col);
+    const gold = '#e8c860';
+    switch (b.type) {
+      case 'bed':
+        box(0.5, 1.5, 7, 5, shade(fg, 0.5));
+        box(1, 2, 6, 4, '#8a3434');
+        box(1, 2, 2, 4, '#e8e0d0');
+        return true;
+      case 'table':
+        box(1, 1, 6, 6, shade(fg, 0.5));
+        box(1.5, 1.5, 5, 5, shade(fg, 0.8));
+        return true;
+      case 'chair':
+        box(2, 1, 4, 1.5, shade(fg, 0.5));
+        box(2, 2.5, 4, 4, shade(fg, 0.8));
+        return true;
+      case 'door':
+        box(1.5, 0, 5, 8, shade(b.locked ? '#c04030' : fg, 0.6));
+        box(3.8, 0, 0.4, 8, 'rgba(0,0,0,0.4)');
+        box(5.2, 3.6, 0.9, 0.9, gold);
+        return true;
+      case 'chest':
+        box(1, 2.5, 6, 4.5, shade(fg, 0.6));
+        box(1, 2.5, 6, 1.2, shade(fg, 0.85));
+        box(3.6, 3.4, 0.9, 1.2, gold);
+        return true;
+      case 'cabinet':
+        box(1.5, 0.5, 5, 7, shade(fg, 0.6));
+        box(3.8, 0.5, 0.4, 7, 'rgba(0,0,0,0.45)');
+        box(3, 3.5, 0.6, 1, gold);
+        box(4.5, 3.5, 0.6, 1, gold);
+        return true;
+      case 'coffin':
+        box(2, 0.5, 4, 7, shade(fg, b.corpse ? 0.4 : 0.6));
+        box(2.5, 1, 3, 6, shade(fg, 0.3));
+        box(3.7, 1.6, 0.6, 3.2, shade(fg, 0.8));
+        box(3, 2.5, 2, 0.6, shade(fg, 0.8));
+        return true;
+      case 'statue':
+        box(2, 6, 4, 1.6, shade(fg, 0.5));
+        box(3, 2.6, 2, 3.4, shade(fg, 0.8));
+        this.disc(c, px, py, 4, 1.8, 1.2, fg);
+        return true;
+      case 'well':
+        box(1, 1, 6, 6, shade(fg, 0.6));
+        box(2, 2, 4, 4, '#11427c');
+        return true;
+      case 'lever':
+        box(2.5, 5.6, 3, 1.4, '#6a6a70');
+        this.poly(c, px, py, b.open ? [3.7, 5.8, 4.3, 5.8, 6, 1.8, 5.4, 1.6] : [3.7, 5.8, 4.3, 5.8, 2.6, 1.6, 2, 1.8], '#d8d8d8');
+        this.disc(c, px, py, b.open ? 5.7 : 2.3, 1.6, 0.9, '#e04040');
+        return true;
+      case 'floodgate':
+        box(0.5, 0.5, 7, 7, shade(fg, b.open ? 0.22 : 0.6));
+        for (let k = 0; k < 3; k++) box(2 + k * 2, 0.5, 0.4, 7, 'rgba(0,0,0,0.4)');
+        return true;
+      case 'cagetrap': case 'stonetrap':
+        box(1, 1, 6, 6, '#3a3630');
+        box(1.5, 1.5, 5, 5, b.type === 'cagetrap' ? '#6a6430' : '#5a5650');
+        if (b.caged) for (let k = 0; k < 4; k++) box(1.6 + k * 1.5, 1, 0.5, 6, '#e0e060');
+        else this.poly(c, px, py, [4, 2.4, 5.8, 5.6, 2.2, 5.6], b.type === 'cagetrap' ? '#e0e060' : '#c8c8c8');
+        return true;
+    }
+    return false;
+  }
+
+  /** drawn art for common items; false = use the glyph */
+  private itemArt(c: Ctx, it: Item, px: number, py: number): boolean {
+    const box = (ax: number, ay: number, aw: number, ah: number, col: string) => this.box(c, px, py, ax, ay, aw, ah, col);
+    const m = MATS[it.mat];
+    switch (it.type) {
+      case 'boulder': case 'ore': {
+        const col = it.type === 'ore' ? '#6a6460' : shade(m.fg, 0.7);
+        this.disc(c, px, py, 4, 4.6, 2.8, 'rgba(0,0,0,0.5)', 2.3);
+        this.disc(c, px, py, 4, 4.3, 2.5, col, 2);
+        if (it.type === 'ore') {
+          box(2.8, 3.6, 1, 1, m.fg);
+          box(4.6, 4.4, 1, 1, m.fg);
+        } else box(3, 3.2, 1.2, 0.8, 'rgba(255,255,255,0.3)');
+        return true;
+      }
+      case 'log':
+        box(0.8, 3, 6.4, 2.4, 'rgba(0,0,0,0.5)');
+        box(1, 3, 6, 2, shade(m.fg, 0.7));
+        box(1, 3, 1, 2, shade(m.fg, 1.1));
+        return true;
+      case 'bar':
+        box(1, 4, 6, 2, shade(m.fg, 0.55));
+        box(1.8, 3, 4.4, 1.2, shade(m.fg, 0.95));
+        return true;
+      case 'block':
+        box(2, 2, 4, 4, shade(m.fg, 0.75));
+        box(2, 5.2, 4, 0.8, shade(m.fg, 0.4));
+        box(5.2, 2, 0.8, 4, shade(m.fg, 0.5));
+        return true;
+      case 'barrel': case 'drink': {
+        const wood = m.kind === 'wood' ? m.fg : '#b07a3c';
+        box(2, 1, 4, 6, shade(wood, 0.65));
+        box(1.4, 2.2, 5.2, 3.6, shade(wood, 0.65));
+        box(1.4, 2.6, 5.2, 0.5, '#2e2218');
+        box(1.4, 5, 5.2, 0.5, '#2e2218');
+        if (it.type === 'drink') box(2.6, 1, 2.8, 0.9, '#e0b040');
+        return true;
+      }
+      case 'gem': case 'cutgem':
+        this.poly(c, px, py, [4, 1.6, 6.4, 4, 4, 6.4, 1.6, 4], shade(m.fg, it.type === 'gem' ? 0.7 : 1));
+        this.poly(c, px, py, [4, 1.6, 6.4, 4, 4, 4], 'rgba(255,255,255,0.35)');
+        return true;
+    }
+    return false;
   }
 
   private drawTerrain(g: Game, ov: Overlay) {
@@ -256,30 +609,37 @@ export class Renderer {
     for (const b of g.buildings.values()) {
       if (b.z !== z) continue;
       const d = BUILDINGS[b.type];
+      const hex = b.mat && !d.shop ? MATS[b.mat].fg : d.fg;
       for (let dy = 0; dy < b.h; dy++)
         for (let dx = 0; dx < b.w; dx++) {
           const px = (b.x + dx - cx) * s, py = (b.y + dy - cy) * s;
           if (px < -s || py < -s || px > this.cw || py > this.ch) continue;
-          let ch = d.glyphs.length === b.w * b.h ? d.glyphs[dx + dy * b.w] : d.glyphs[0];
-          let fg = b.mat && !d.shop ? MATS[b.mat].fg : d.fg;
-          let bg = '#1a1510';
-          if (b.type === 'bridge' && b.open) {
-            bg = 'rgba(0,0,0,0)';
-            fg = 'rgba(200,200,200,0.35)';
-            ch = '╌';
-          } else if (b.type === 'floodgate' && b.open) fg = shade(fg.startsWith('#') ? fg : '#cccccc', 0.4);
-          else if (b.type === 'door' && b.locked) fg = '#ff5040';
-          else if (b.type === 'lever') ch = b.open ? 'ó' : 'ò';
-          else if (b.type === 'cagetrap' && b.caged) {
-            ch = '▓';
-            fg = '#e0e060';
-          } else if (b.type === 'coffin' && b.corpse) fg = '#909090';
           c.globalAlpha = b.built ? 1 : 0.5;
-          if (bg !== 'rgba(0,0,0,0)') {
-            c.fillStyle = b.built ? bg : '#2a2410';
+          const raised = b.type === 'bridge' && b.open;
+          if (!this.ascii && b.type === 'bridge' && !raised) {
+            // a plank deck
+            c.fillStyle = shade(hex, 0.45);
             c.fillRect(px, py, s, s);
+            for (let k = 0; k < 3; k++) this.box(c, px, py, 0, k * 2.67, 8, 0.4, 'rgba(0,0,0,0.35)');
+          } else if (this.ascii || b.w > 1 || b.h > 1 || raised || !this.furniture(c, b, px, py, hex)) {
+            let ch = d.glyphs.length === b.w * b.h ? d.glyphs[dx + dy * b.w] : d.glyphs[0];
+            let fg = hex;
+            if (raised) {
+              fg = 'rgba(200,200,200,0.35)';
+              ch = '╌';
+            } else if (b.type === 'floodgate' && b.open) fg = shade(hex, 0.4);
+            else if (b.type === 'door' && b.locked) fg = '#ff5040';
+            else if (b.type === 'lever') ch = b.open ? 'ó' : 'ò';
+            else if (b.type === 'cagetrap' && b.caged) {
+              ch = '▓';
+              fg = '#e0e060';
+            } else if (b.type === 'coffin' && b.corpse) fg = '#909090';
+            if (!raised) {
+              c.fillStyle = !b.built ? '#2a2410' : this.ascii ? '#1a1510' : shade(d.fg, 0.16);
+              c.fillRect(px, py, s, s);
+            }
+            this.glyph(c, ch, fg, px, py);
           }
-          this.glyph(c, ch, fg, px, py);
           c.globalAlpha = 1;
           if (!b.built) {
             c.strokeStyle = b.suspended ? 'rgba(255,90,70,0.8)' : 'rgba(255,220,120,0.6)';
@@ -291,7 +651,82 @@ export class Renderer {
             c.strokeRect(px + 1.5, py + 1.5, s - 3, s - 3);
           }
         }
+      if (!this.ascii && d.shop && b.built) {
+        // one frame around the whole workshop
+        c.strokeStyle = shade(d.fg, 0.55);
+        c.strokeRect((b.x - cx) * s + 0.5, (b.y - cy) * s + 0.5, b.w * s - 1, b.h * s - 1);
+      }
     }
+  }
+
+  // ------------------------------------------------------------ creatures
+  private unit(c: Ctx, u: Unit, px: number, py: number, blink: boolean) {
+    const s = this.cam.tile;
+    const d = CREATURES[u.kind];
+    const lying = u.isDwarf && (u.downSince > 0 || u.job?.type === 'sleep' || u.job?.type === 'rest');
+    const sp = spriteOf(u);
+    if (sp) {
+      const px1 = s / 8;
+      const size = Math.ceil(px1);
+      c.fillStyle = 'rgba(0,0,0,0.38)';
+      c.fillRect(px, py, s, s);
+      for (let ry = 0; ry < 8; ry++)
+        for (let rx = 0; rx < 8; rx++) {
+          const col = sp.pal[sp.map[ry][rx]];
+          if (!col) continue;
+          c.fillStyle = col;
+          // lying down: the sprite is turned on its side
+          c.fillRect(px + Math.floor((lying ? ry : rx) * px1), py + Math.floor((lying ? rx : ry) * px1), size, size);
+        }
+    } else {
+      // animals and monsters: a lettered token, ringed by allegiance
+      const ring = u.state === 'caged' ? '#e0e060' : u.faction === 'enemy' ? '#d03a30' : u.faction === 'fort' ? '#5a9a4a' : u.hunted && blink ? '#ff9a30' : '#6a6258';
+      c.fillStyle = 'rgba(16,13,10,0.86)';
+      c.beginPath();
+      c.arc(px + s / 2, py + s / 2, s * 0.47, 0, Math.PI * 2);
+      c.fill();
+      c.strokeStyle = ring;
+      c.lineWidth = Math.max(1, s / 12);
+      c.stroke();
+      c.lineWidth = 1;
+      this.mini(c, d.glyph, u.fg, px, py, 0.74, 0.5, 0.54);
+    }
+    if (u.isDwarf) {
+      if (u.drafted) {
+        c.strokeStyle = '#ff4030';
+        c.strokeRect(px + 0.5, py + 0.5, s - 1, s - 1);
+      }
+      if (u.downSince && blink) {
+        c.fillStyle = 'rgba(255,40,40,0.4)';
+        c.fillRect(px, py, s, s);
+      } else if (lying && !u.downSince && blink) this.mini(c, 'z', '#ffffff', px, py, 0.55, 0.78, 0.26);
+      if ((u.state === 'berserk' || u.state === 'tantrum') && blink) this.mini(c, '!', '#ff3030', px, py, 0.8, 0.8, 0.34);
+      else if (u.state === 'mood' && blink) this.mini(c, '‼', '#ffe070', px, py, 0.7, 0.78, 0.3);
+    } else if (u.state === 'caged') {
+      for (let k = 0; k < 4; k++) this.box(c, px, py, 1.2 + k * 1.7, 0.6, 0.45, 6.8, 'rgba(224,224,96,0.8)');
+    }
+  }
+  private unitAscii(c: Ctx, u: Unit, px: number, py: number, blink: boolean) {
+    const s = this.cam.tile;
+    const d = CREATURES[u.kind];
+    let ch = d.glyph, fg = u.fg, bg = 'rgba(0,0,0,0.75)';
+    if (u.isDwarf) {
+      if (u.state === 'berserk' || u.state === 'tantrum') {
+        fg = blink ? '#ff3030' : u.fg;
+        ch = blink ? '!' : '☺';
+      } else if (u.downSince) {
+        fg = blink ? '#ff5050' : '#803030';
+        ch = '☻';
+      } else if (u.job?.type === 'sleep' || u.job?.type === 'rest') {
+        ch = blink ? 'z' : '☺';
+        fg = shade(fg.length === 7 ? fg : '#ffffff', 0.7);
+      } else if (u.state === 'mood') ch = blink ? '‼' : '☺';
+      if (u.drafted) bg = '#6a1010';
+    } else if (u.faction === 'enemy') bg = u.state === 'caged' ? 'rgba(60,60,0,0.8)' : 'rgba(70,0,0,0.75)';
+    else if (u.hunted && blink) bg = 'rgba(120,60,0,0.8)';
+    c.fillStyle = bg;
+    c.fillRect(px, py, s, s);
+    this.glyph(c, ch, fg, px, py);
   }
 
   // ------------------------------------------------------------ frame
@@ -324,9 +759,15 @@ export class Renderer {
         if (!it) continue;
         const d = ITEMS[it.type];
         const px = rx * s, py = ry * s;
-        c.fillStyle = 'rgba(0,0,0,0.55)';
-        c.fillRect(px, py, s, s);
-        this.glyph(c, it.type === 'plant' || it.type === 'seed' ? (it.type === 'seed' ? '·' : plantOf(it.sub || '').glyph) : d.glyph, it.forbid ? '#804040' : d.fg || (it.type === 'plant' || it.type === 'seed' ? plantOf(it.sub || '').fg : MATS[it.mat].fg), px, py);
+        if (this.ascii || !this.itemArt(c, it, px, py)) {
+          const organic = it.type === 'plant' || it.type === 'seed';
+          c.fillStyle = this.ascii ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.4)';
+          c.fillRect(px, py, s, s);
+          this.glyph(c, organic ? (it.type === 'seed' ? '·' : plantOf(it.sub || '').glyph) : d.glyph, it.forbid ? '#804040' : d.fg || (organic ? plantOf(it.sub || '').fg : MATS[it.mat].fg), px, py);
+        } else if (it.forbid) {
+          c.fillStyle = 'rgba(160,40,40,0.45)';
+          c.fillRect(px, py, s, s);
+        }
         if (l.length > 1) {
           c.fillStyle = '#ffd24a';
           c.fillRect(px + s - 3, py + 1, 2, 2);
@@ -345,26 +786,9 @@ export class Renderer {
       const n = (seen.get(i) || 0) + 1;
       seen.set(i, n);
       if (n > 1 && Math.floor(now / 700) % n !== n - 1 && !ov.selUnits.has(u.id)) return;
-      const d = CREATURES[u.kind];
-      let ch = d.glyph, fg = u.fg, bg = 'rgba(0,0,0,0.75)';
-      if (u.isDwarf) {
-        if (u.state === 'berserk' || u.state === 'tantrum') {
-          fg = blink ? '#ff3030' : u.fg;
-          ch = blink ? '!' : '☺';
-        } else if (u.downSince) {
-          fg = blink ? '#ff5050' : '#803030';
-          ch = '☻';
-        } else if (u.job?.type === 'sleep' || u.job?.type === 'rest') {
-          ch = blink ? 'z' : '☺';
-          fg = shade(fg.length === 7 ? fg : '#ffffff', 0.7);
-        } else if (u.state === 'mood') ch = blink ? '‼' : '☺';
-        if (u.drafted) bg = '#6a1010';
-      } else if (u.faction === 'enemy') bg = u.state === 'caged' ? 'rgba(60,60,0,0.8)' : 'rgba(70,0,0,0.75)';
-      else if (u.hunted && blink) bg = 'rgba(120,60,0,0.8)';
       c.globalAlpha = dim ? 0.45 : 1;
-      c.fillStyle = bg;
-      c.fillRect(px, py, s, s);
-      this.glyph(c, ch, fg, px, py);
+      if (this.ascii) this.unitAscii(c, u, px, py, blink);
+      else this.unit(c, u, px, py, blink);
       c.globalAlpha = 1;
       if (ov.selUnits.has(u.id)) {
         c.strokeStyle = '#ffe070';

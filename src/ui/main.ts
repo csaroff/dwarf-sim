@@ -8,6 +8,7 @@ import { cannotOrder, optionsAt, order, setDraft } from '../sim/orders';
 import { newGame, step } from '../sim/sim';
 import type { Option, Unit, Zone } from '../sim/types';
 import { WH, X, Y, Z, idx } from '../sim/world';
+import { CAVERN1_Z, CAVERN2_Z, MAGMA_Z } from '../sim/worldgen';
 import { HELP, buildingPanel, cellPanel, esc, laborsModal, stocksModal, tileText, tradeModal, unitPanel, zonePanel } from './panels';
 import { Overlay, Renderer } from './render';
 import { loadSave, writeSave } from './save';
@@ -347,6 +348,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 't') modal = modal === 'trade' ? '' : 'trade';
   else if (k === 'h' || k === '?') modal = modal === 'help' ? '' : 'help';
   else if (k === 'm') act('music', '');
+  else if (k === 'g') act('ascii', '');
   else if (k === 'f') {
     const u = primary();
     if (u) jump(u.x, u.y, u.z);
@@ -382,6 +384,8 @@ function act(a: string, v: string, el?: HTMLElement) {
     case 'save': save(); break;
     case 'menu': void save(true).then(showTitle); break; // the title screen offers "Continue", so the save must land first
     case 'z': R.cam.z += +v; R.clamp(); break;
+    case 'zset': R.cam.z = +v; R.clamp(); break;
+    case 'ascii': R.setAscii(!R.ascii); break;
     case 'cat': cat = cat === v ? '' : v; tool = null; break;
     case 'tool': tool = tool?.id === v ? null : TOOLS[cat].find((t) => t.id === v) || null; linking = 0; break;
     case 'alert': {
@@ -506,6 +510,18 @@ $('modal').addEventListener('pointerdown', (e) => {
 });
 
 // ------------------------------------------------------------------ UI refresh
+let srange: { g: Game; r: [number, number] } | null = null;
+/** lowest and highest ground level on the map (for telling sky / surface / underground apart) */
+function surfaceRange(): [number, number] {
+  if (srange?.g === g) return srange.r;
+  let lo = D, hi = 0;
+  for (const z of g.w.surface) {
+    if (z < lo) lo = z;
+    if (z > hi) hi = z;
+  }
+  srange = { g, r: [lo, hi] };
+  return srange.r;
+}
 const last: Record<string, string> = {};
 function set(id: string, html: string) {
   if (last[id] === html) return;
@@ -523,18 +539,32 @@ function ui() {
   const stat = (label: string, n: number, low: number) => `<span class="stat ${n === 0 ? 'bad' : n < low ? 'warn' : ''}">${label} <b>${n}</b></span>`;
   const b = (label: string, a: string, v: string | number, on = false, title = '') => `<button data-a="${a}" data-v="${v}" class="${on ? 'on' : ''}" title="${title}">${label}</button>`;
   const lvl = R.cam.z - g.embark.z;
-  set('top', `<span class="name">☼ ${esc(g.fortName)}</span><span>${g.dateString()}</span>
-    ${stat('☺', pop, 1)}${stat('Drink', s.drink || 0, pop * 2)}${stat('Food', s.food || 0, pop * 2)}<span class="stat">Wealth <b>${g.wealth}☼</b></span>
+  const [smin, smax] = surfaceRange();
+  const where = (z: number) => (z > smax ? 'sky' : z >= smin ? 'surf' : g.ev.magmaSeen && z <= MAGMA_Z ? 'mag' : (g.ev.cavern >= 1 && (z === CAVERN1_Z || z === CAVERN1_Z + 1)) || (g.ev.cavern >= 2 && (z === CAVERN2_Z || z === CAVERN2_Z + 1)) ? 'cav' : 'under');
+  const WHERE: Record<string, string> = { sky: 'sky', surf: 'surface', under: 'underground', cav: 'cavern', mag: 'magma sea' };
+  set('top', `<span class="name">☼ ${esc(g.fortName)}</span><span class="date">${g.dateString()}</span>
+    ${stat('☺', pop, 1)}${stat('Drink', s.drink || 0, pop * 2)}${stat('Food', s.food || 0, pop * 2)}<span class="stat wide">Wealth <b>${g.wealth}☼</b></span>
     <span class="sp"></span>
-    ${b('▼', 'z', -1, false, 'Level down (Q)')}<span title="Shift+wheel also changes level">Level <b>${lvl > 0 ? '+' : ''}${lvl}</b></span>${b('▲', 'z', 1, false, 'Level up (E)')}
+    ${b('▼', 'z', -1, false, 'Level down (Q)')}<span title="0 is the level the wagon arrived on. Shift+wheel also changes level; the gauge on the left jumps to any level">Level <b>${lvl > 0 ? '+' : ''}${lvl}</b> <span class="sub">${WHERE[where(R.cam.z)]}</span></span>${b('▲', 'z', 1, false, 'Level up (E)')}
     ${b('❚❚', 'speed', 0, speed === 0, 'Pause (Space)')}${b('▶', 'speed', 1, speed === 1)}${b('▶▶', 'speed', 2, speed === 2)}${b('▶▶▶', 'speed', 3, speed === 3)}
     ${b('Labors', 'modal', 'labors', modal === 'labors', 'L')}${b('Stocks', 'modal', 'stocks', modal === 'stocks', 'K')}${b('Trade', 'modal', 'trade', modal === 'trade' || g.caravan?.state === 'trading', 'T')}
-    ${b('♫', 'music', '', !music.paused, 'Music (M)')}${b('Save', 'save', '')}${b('?', 'modal', 'help', false, 'Help (H)')}${b('Menu', 'menu', '')}`);
+    ${b(R.ascii ? 'ASCII' : 'Tiles', 'ascii', '', false, 'Switch between drawn tiles and classic ASCII (G)')}${b('♫', 'music', '', !music.paused, 'Music (M)')}${b('Save', 'save', '')}${b('?', 'modal', 'help', false, 'Help (H)')}${b('Menu', 'menu', '')}`);
 
   set('roster', ds.map((u) => {
     const e = explainUnit(g, u);
     return `<span class="d ${ov.selUnits.has(u.id) ? 'sel' : ''} ${u.drafted ? 'draft' : ''} ${e.tone === 'ok' ? '' : e.tone}" data-a="pick" data-v="${u.id}" title="${esc(u.name + ' — ' + e.status + (e.lines[0] ? ': ' + e.lines[0] : ''))}" style="border-bottom-color:${u.mood > 45 ? '#4a8a4a' : u.mood > 25 ? '#c09030' : '#c04030'}">${esc(u.name.split(' ')[0])}</span>`;
   }).join(''));
+
+  // depth gauge: every level top to bottom, who is where, click to jump
+  const here = new Map<number, number>(), foes = new Set<number>();
+  for (const u of ds) here.set(u.z, (here.get(u.z) || 0) + 1);
+  for (const u of g.units.values()) if (u.faction === 'enemy' && !u.dead && u.state !== 'caged' && g.w.revealed(g.cellOf(u))) foes.add(u.z);
+  let gauge = '';
+  for (let z = D - 1; z >= 0; z--) {
+    const n = here.get(z) || 0, rel = z - g.embark.z;
+    gauge += `<div class="zr ${where(z)} ${z === R.cam.z ? 'cur' : ''}" data-a="zset" data-v="${z}" title="Level ${rel} (${WHERE[where(z)]})${n ? `: ${n} dwar${n > 1 ? 'ves' : 'f'}` : ''}${foes.has(z) ? ' — hostiles!' : ''}"><span>${rel}</span>${foes.has(z) ? '<i class="foe">!</i>' : n ? `<i>${n}</i>` : ''}</div>`;
+  }
+  set('depth', gauge);
 
   set('alerts', g.alerts.slice(0, 12).map((a, k) => `<div class="alert ${a.sev}" data-a="alert" data-v="${k}">${a.sev === 'bad' ? '‼' : '⚠'} ${esc(a.text)}<div class="detail">${esc(a.detail)}</div></div>`).join(''));
 

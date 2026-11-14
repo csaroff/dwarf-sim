@@ -21,10 +21,11 @@ npm run dev        # http://localhost:5173
 | Select a dwarf, right-click | Menu of orders for that spot. Picking one overrides the current job. Impossible orders are listed greyed out with the reason |
 | Drag | Select several dwarves |
 | `R` | Draft / undraft (drafted dwarves stop working, fight, and go where you right-click) |
-| `Q` `E`, Shift+wheel | Level down / up |
+| `Q` `E`, Shift+wheel | Level down / up. The gauge on the left shows every level, where your dwarves are, and jumps on click |
 | `WASD`, wheel | Pan, zoom |
 | `Space`, `1` `2` `3` | Pause, speed |
 | `L` `K` `T` `H` `M` | Labors, stocks, trade, help, music |
+| `G` | Switch between drawn tiles and classic ASCII |
 
 Alerts (top left) explain each problem and its fix on hover; clicking jumps there. Raids pause the game.
 
