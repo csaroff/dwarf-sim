@@ -4,10 +4,10 @@ import { beginMood, computeAlerts } from '../src/sim/events';
 import { Game, MOON_DAYS } from '../src/sim/game';
 import { megabeast, necroSiege, werebeast } from '../src/sim/night';
 import { DG, canPlace, explainTask, placeBuilding, toggleLever, tryDesig } from '../src/sim/jobs';
-import { explainUnit, fallDamage, killUnit, lineOfSight } from '../src/sim/life';
+import { TERRITORY, explainUnit, fallDamage, killUnit, lineOfSight } from '../src/sim/life';
 import { optionsAt, order, setDraft } from '../src/sim/orders';
 import { step } from '../src/sim/sim';
-import { WH } from '../src/sim/world';
+import { WH, dist } from '../src/sim/world';
 import { built, cell, dwarf, flatGame, give, room, run } from './helpers';
 
 const alertText = (g: Game) => computeAlerts(g).map((a) => `${a.text}: ${a.detail}`).join('\n');
@@ -571,6 +571,26 @@ describe('machinery', () => {
     run(g, 200);
     expect(total()).toBeGreaterThanOrEqual(stopped);
   });
+});
+
+test('a cavern beast defends its territory but does not follow a trail of victims out of it', () => {
+  const g = flatGame();
+  const home = cell(60, 60);
+  const beast = g.addUnit('beast', home, 'enemy');
+  beast.home = home;
+  // three dwarves standing in a line leading away from its lair, each within sight of the last
+  const near = dwarf(g, 66, 60, []);
+  const mid = dwarf(g, 75, 60, []);
+  const far = dwarf(g, 84, 60, []);
+  for (const d of [near, mid, far]) d.nextThink = 1e9;
+
+  run(g, 4000);
+  // the one who wandered into its territory is dead...
+  expect(near.dead).toBe(true);
+  // ...but it did not chain from victim to victim all the way up the line
+  expect(far.dead).toBe(false);
+  expect(dist(g.cellOf(beast), home)).toBeLessThanOrEqual(TERRITORY);
+  void mid;
 });
 
 describe('things that come in the night', () => {

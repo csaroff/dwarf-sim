@@ -14,6 +14,8 @@ export const TIRED_RATE = 100 / (TICKS_DAY * 1.6);
 export const SOBER_SLOW = TICKS_DAY * 5; // works slowly without booze
 export const SOBER_SICK = TICKS_DAY * 12; // withdrawal starts to kill
 export const STARVE = 250;
+/** how far from its lair a territorial creature will go after someone */
+export const TERRITORY = 14;
 export const DEHYDRATE = 200;
 
 const first = (u: Unit) => u.name.split(' ')[0];
