@@ -279,6 +279,7 @@ export class Game {
       case 'bone': s = `${it.sub || ''} bones`.trim(); break;
       case 'skull': s = `${it.sub || ''} skull`.trim(); break;
       case 'fuel': s = m.name; break;
+      case 'flour': s = it.sub || 'flour'; break;
       case 'leather': case 'cloth': s = m.name; break;
       case 'artifact': s = it.name || 'artifact'; break;
       default: s = m.id === 'none' ? d.name : `${m.name} ${d.name}`;
@@ -293,7 +294,7 @@ export class Game {
   itemValue(it: Item): number {
     const d = ITEMS[it.type];
     const m = MATS[it.mat];
-    let v = d.value * (it.type === 'drink' || it.type === 'meal' || it.type === 'plant' || it.type === 'seed' || it.type === 'meat' || it.type === 'fish' ? 1 : Math.max(1, m.value));
+    let v = d.value * (it.type === 'drink' || it.type === 'meal' || it.type === 'plant' || it.type === 'seed' || it.type === 'meat' || it.type === 'fish' || it.type === 'flour' ? 1 : Math.max(1, m.value));
     if (it.type === 'boulder' || it.type === 'ore' || it.type === 'gem') v = Math.max(1, m.value) * (it.type === 'gem' ? 1 : 1);
     if (it.type === 'cutgem') v = m.value * 2;
     v *= QVALUE[it.q] || 1;
@@ -523,6 +524,7 @@ export class Game {
     else if (b.type === 'floodgate') bits = b.open ? 0 : BLOCK_WALK | BLOCK_FLUID;
     else if (b.type === 'bridge') bits = b.open ? 0 : BLOCK_DECK; // raised: the span is simply gone
     else if (d.blocks || b.type === 'well') bits = BLOCK_WALK;
+    else if (b.type === 'axle') bits = this.w.tile[this.center(b)] === T.Open ? BLOCK_DECK : 0; // an axle across a gap can be walked along
     for (const c of this.cellsOf(b)) this.w.setBlock(c, bits);
   }
   removeBuilding(b: Building, dropMats = true) {

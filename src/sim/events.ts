@@ -6,6 +6,7 @@ import {
   DG_LABOR, DG_NAME, RUN, assign, canWalk, endJob, explainTask, fetch, isJob, needsTending, tryBuild, tryDesig, tryHaul, tryRescue, walk,
 } from './jobs';
 import { SOBER_SLOW, downReason, killUnit } from './life';
+import { machineAlerts } from './machines';
 import { nightAlerts, tickNight } from './night';
 import type { Alert, Building, Item, Job, Unit } from './types';
 import { WH, X, Y, Z, dist, idx, inMap } from './world';
@@ -198,6 +199,8 @@ function beast(g: Game) {
   const c = cavernCell(g, g.ev.cavern >= 2 ? CAVERN2_Z : CAVERN1_Z);
   if (c < 0) return;
   const u = g.addUnit('beast', c, 'enemy');
+  // it prowls the cavern it woke in, and comes up after the fortress only once that is big enough to draw it
+  if (g.dwarves().length < 25) u.home = c;
   const forms = ['towering eyeless lizard', 'great three-headed toad', 'enormous blob of ash', 'huge skinless bat', 'gigantic one-eyed crab'];
   u.name = `${g.rng.pick(['Osplu', 'Ngathsesh', 'Zuspo', 'Thrak', 'Olngo'])} ${g.rng.pick(['Wraithfang', 'the Cinder of Ends', 'Rotmaw', 'Doomgrasp'])}`;
   g.say(`The Forgotten Beast ${u.name} has come! A ${g.rng.pick(forms)}. It has ${g.rng.pick(['a gaunt appearance', 'emerald scales', 'lidless eyes'])}. Beware its ${g.rng.pick(['deadly dust', 'webs', 'poisonous bite'])}!`, 'death', c, true);
@@ -582,6 +585,7 @@ export function computeAlerts(g: Game): Alert[] {
     if (!u.state && u.mood < 25) out.push({ id: 'sad' + u.id, sev: 'warn', text: `${first(u)} is miserable`, detail: `${u.name} is close to breaking. Worst thoughts: ${u.thoughts.filter((t) => t.v < 0).sort((a, b) => a.v - b.v).slice(0, 3).map((t) => t.text).join('; ') || 'none'}.`, unit: u.id });
   }
   nightAlerts(g, out);
+  machineAlerts(g, out);
   // ---- enemies
   const foes = Array.from(g.units.values()).filter((u) => u.faction === 'enemy' && !u.dead && u.state !== 'caged' && g.w.revealed(g.cellOf(u)) && u.kind !== 'kobold' && (u.home === undefined || !!u.target));
   // an enemy that has no route to anyone is a different problem from one at the gate

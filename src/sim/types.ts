@@ -167,6 +167,8 @@ export interface Building {
   remove?: boolean; // marked for deconstruction
   caged?: number; // cage trap: unit id inside
   corpse?: string; // coffins: who is buried here
+  powered?: boolean; // machines: is its network turning?
+  pwr?: string; // machines: what the network is doing, or why it is not
   name?: string;
   why?: string;
 }

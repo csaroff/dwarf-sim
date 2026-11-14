@@ -2,6 +2,7 @@
 import { Game } from './game';
 import { embark, tickEvents } from './events';
 import { killUnit, tickUnit } from './life';
+import { tickPumps, updatePower } from './machines';
 
 export function step(g: Game) {
   g.tick++;
@@ -14,6 +15,8 @@ export function step(g: Game) {
       if (b) g.removeBuilding(b, false);
     });
   }
+  if (g.tick % 20 === 0) updatePower(g);
+  if (g.tick % 6 === 0) tickPumps(g);
   for (const u of Array.from(g.units.values())) tickUnit(g, u);
   tickEvents(g);
 }

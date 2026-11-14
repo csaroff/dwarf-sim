@@ -30,6 +30,13 @@ export function dwarf(g: Game, x: number, y: number, labors: string[] = [], z = 
 export function give(g: Game, u: Unit, type: string, slot: string, mat = MAT.copper) {
   g.equip(u, g.spawnItem(type, mat, g.cellOf(u)), slot);
 }
+/** a finished building, placed without anyone having to build it */
+export function built(g: Game, type: string, x: number, y: number, z = 20, w?: number, h?: number) {
+  const b = g.addBuilding(type, x, y, z, w, h);
+  b.built = true;
+  g.applyBlock(b);
+  return b;
+}
 /** carve a room out of the rock at level z (floor tiles) */
 export function room(g: Game, x0: number, y0: number, x1: number, y1: number, z: number) {
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) g.w.setTile(idx(x, y, z), T.Floor);

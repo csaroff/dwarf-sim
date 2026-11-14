@@ -558,17 +558,25 @@ export function canPlace(g: Game, type: string, x: number, y: number, z: number,
       case 'bridge':
         if (t !== T.Floor && t !== T.Open && t !== T.Ramp) return NO('Bridges span floors or open space');
         break;
-      case 'well': {
-        if (t !== T.Open) return NO('A well goes over a hole (channel one) with water below');
+      case 'windmill':
+        if (t !== T.Floor) return NO('Needs a floor');
+        if (!w.outside(c)) return NO('A windmill needs open sky above it');
+        break;
+      case 'waterwheel':
+        if (t !== T.Floor) return NO('Needs a floor');
+        if (!wheelWater(g, c)) return NO('A water wheel goes on the bank, right next to deep water');
+        break;
+      case 'well': case 'pump': {
+        if (t !== T.Open) return NO(type === 'pump' ? 'A pump goes over a hole (channel one) with water or magma below' : 'A well goes over a hole (channel one) with water below');
         let c2 = c - WH, found = false;
         while (c2 >= 0 && w.tile[c2] !== T.Wall) {
-          if (w.water[c2] > 0) {
+          if (w.water[c2] > 0 || (type === 'pump' && w.magma[c2] > 0)) {
             found = true;
             break;
           }
           c2 -= WH;
         }
-        if (!found) return NO('No water below this hole');
+        if (!found) return NO(type === 'pump' ? 'Nothing to pump below this hole' : 'No water below this hole');
         break;
       }
       default:
@@ -576,9 +584,9 @@ export function canPlace(g: Game, type: string, x: number, y: number, z: number,
     }
   }
   if (d.magma && !w.nearMagma(idx(x + 1, y + 1, z))) return NO('Needs magma within 3 levels below (dig down to the magma sea and build above it)');
-  if (type === 'floor' || type === 'bridge' || type === 'stairs' || type === 'wall' || type === 'well') {
+  if (type === 'floor' || type === 'bridge' || type === 'stairs' || type === 'wall' || type === 'well' || type === 'pump') {
     // someone has to be able to stand next to it
-    if (!cells.some((c) => w.workSpots(c, type !== 'wall' && type !== 'well').length > 0)) return NO('No floor next to it to build from');
+    if (!cells.some((c) => w.workSpots(c, type !== 'wall' && type !== 'well' && type !== 'pump').length > 0)) return NO('No floor next to it to build from');
   }
   return OK;
 }
@@ -588,7 +596,16 @@ export function placeBuilding(g: Game, type: string, x: number, y: number, z: nu
   g.w.version++;
   return b;
 }
-const standOn = (b: Building) => !['wall', 'statue', 'floodgate', 'well', 'floor', 'bridge'].includes(b.type);
+const standOn = (b: Building) => !['wall', 'statue', 'floodgate', 'well', 'pump', 'floor', 'bridge'].includes(b.type);
+/** deep water right beside a cell (or one level down past an open edge): what a water wheel needs */
+export function wheelWater(g: Game, c: number): boolean {
+  const w = g.w;
+  for (const n of [c - 1, c + 1, c - 96, c + 96]) {
+    if (n < 0 || n >= w.tile.length || cheb(n, c) !== 1) continue;
+    if (w.water[n] >= 4 || (w.tile[n] === T.Open && n >= WH && w.water[n - WH] >= 4)) return true;
+  }
+  return false;
+}
 
 export function trySupply(g: Game, u: Unit, b: Building): Try {
   if (b.built) return 'Already built';
@@ -715,6 +732,7 @@ export function tryBill(g: Game, u: Unit, b: Building, k: number): Try {
   const c = g.center(b);
   if (!g.w.canReach(g.cellOf(u), c, false)) return 'no path to the workshop';
   if (isMagma(b) && !g.w.nearMagma(c)) return 'the magma below has drained away';
+  if (BUILDINGS[b.type].machine && !b.powered) return `the ${BUILDINGS[b.type].name.toLowerCase()} is not turning: ${b.pwr || 'no power'}`;
   const items: number[] = [], counts: number[] = [];
   const used = new Set<number>();
   for (const ing of recipeIngs(b, r)) {
@@ -755,7 +773,7 @@ function produce(g: Game, u: Unit, b: Building, r: Recipe, ins: Item[]) {
       break;
     }
     case 'cook': {
-      const names = ins.filter((i) => i.type !== 'fuel').map((i) => g.itemName(i, true).replace(/ meat$/, ''));
+      const names = ins.filter((i) => i.type !== 'fuel').map((i) => g.itemName(i, true).replace(/ meat$/, '').replace(/^dwarven (wheat )?/, ''));
       const n = ins.reduce((a, i) => a + (i.type === 'fuel' ? 0 : i.n), 0);
       const style = r.id === 'feast' ? g.rng.pick(['roast', 'stew', 'feast']) : g.rng.pick(['biscuits', 'stew', 'hash']);
       // the cook saves the seeds, so cooking never starves the farm
@@ -908,7 +926,7 @@ export function toggleLever(g: Game, lever: Building) {
     }
     g.applyBlock(b);
     if (b.type === 'bridge') for (const c of g.cellsOf(b)) settle(g, c); // raised over a pit: whatever stood on it falls
-    g.say(`${g.buildingName(b)} ${b.type === 'door' ? (b.locked ? 'locks' : 'unlocks') : b.type === 'bridge' ? (b.open ? 'is raised' : 'slams down') : b.open ? 'opens' : 'closes'}.`, 'info', g.center(b));
+    g.say(`${g.buildingName(b)} ${b.type === 'gear' ? (b.open ? 'disengages' : 'engages') : b.type === 'door' ? (b.locked ? 'locks' : 'unlocks') : b.type === 'bridge' ? (b.open ? 'is raised' : 'slams down') : b.open ? 'opens' : 'closes'}.`, 'info', g.center(b));
   }
 }
 /** The dwarven atom smasher: a lowering drawbridge obliterates everything under it. */

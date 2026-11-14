@@ -664,6 +664,12 @@ export class Renderer {
               ch = '▓';
               fg = '#e0e060';
             } else if (b.type === 'coffin' && b.corpse) fg = '#909090';
+            else if (d.machine && b.built) {
+              // turning machinery flickers; stopped machinery is dull
+              const turn = b.powered && Math.floor(performance.now() / 500) % 2 === 0;
+              fg = b.powered ? shade(hex, turn ? 1.25 : 0.85) : shade(hex, 0.45);
+              if (turn && (ch === '*' || ch === '═' || ch === 'Φ' || ch === '÷' || ch === '☼')) ch = ch === '*' ? '+' : ch === '═' ? '≈' : ch === 'Φ' ? 'θ' : ch === '÷' ? '%' : '¤';
+            }
             if (!raised) {
               c.fillStyle = !b.built ? '#2a2410' : this.ascii ? '#1a1510' : shade(d.fg, 0.16);
               c.fillRect(px, py, s, s);

@@ -43,6 +43,7 @@ export interface MatDef {
   armor?: number; // metals/leather: protection
   flux?: boolean;
 }
+export const POWER = { windmill: 20, waterwheel: 40 };
 
 export const MATS: MatDef[] = [
   { id: 'none', name: 'nothing', kind: 'special', fg: '#000', bg: '#000', glyph: ' ', hard: 1, value: 0 },
@@ -168,6 +169,7 @@ export const ITEMS: Record<string, ItemDef> = {
   seed: I({ id: 'seed', name: 'seeds', cat: 'seeds', glyph: '·', value: 1 }),
   meat: I({ id: 'meat', name: 'meat', cat: 'food', glyph: '%', fg: '#d06060', value: 2, rots: true }),
   fish: I({ id: 'fish', name: 'fish', cat: 'food', glyph: 'α', fg: '#80c0e0', value: 2, rots: true }),
+  flour: I({ id: 'flour', name: 'flour', cat: 'food', glyph: '░', fg: '#f0e8d0', value: 4 }),
   meal: I({ id: 'meal', name: 'prepared meal', cat: 'food', glyph: '%', fg: '#f0c060', value: 10 }),
   drink: I({ id: 'drink', name: 'drink', cat: 'drink', glyph: 'ö', fg: '#d0a040', value: 3 }),
   barrel: I({ id: 'barrel', name: 'barrel', cat: 'tools', glyph: 'ö', value: 10 }),
@@ -410,6 +412,8 @@ export interface BuildingDef {
   tile?: number; // constructions: resulting tile type
   desc: string;
   magma?: boolean; // needs magma nearby
+  machine?: boolean; // part of a power network
+  power?: number; // machines: power produced (+) or needed to turn (-)
 }
 const anyBuildMat: Ing = { type: ['boulder', 'block', 'log'], n: 1 };
 const B = (d: BuildingDef) => d;
@@ -454,6 +458,13 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   bridge: B({ id: 'bridge', name: 'Drawbridge', w: 1, h: 1, glyphs: '═', fg: '#ccc', needs: [{ type: ['boulder', 'block', 'log'], n: 1 }, { type: 'mechanism', n: 1 }], work: 100, menu: 'machines', desc: 'Drag to size. A walkable deck over open space. A lever raises it: the deck is gone and anything on it falls. When it slams back down it obliterates whatever is standing underneath.' }),
   cagetrap: B({ id: 'cagetrap', name: 'Cage Trap', w: 1, h: 1, glyphs: '^', fg: '#e0e060', needs: [{ type: 'mechanism', n: 1 }, { type: 'cage', n: 1 }], work: 80, menu: 'machines', desc: 'Captures the first hostile to step on it. Any hostile. Yes, even that one.' }),
   stonetrap: B({ id: 'stonetrap', name: 'Stone-fall Trap', w: 1, h: 1, glyphs: '^', fg: '#c0c0c0', needs: [{ type: 'mechanism', n: 1 }, { type: 'boulder', n: 1 }], work: 80, menu: 'machines', desc: 'Drops a boulder on the first hostile to step on it. Single use.' }),
+  // ---- machinery: sources, shafts and things that need turning
+  windmill: B({ id: 'windmill', name: 'Windmill', w: 3, h: 3, glyphs: '╲│╱─☼─╱│╲', fg: '#e0d8c0', needs: [{ type: 'log', n: 4 }], work: 200, menu: 'machines', machine: true, power: POWER.windmill, desc: `Makes ${POWER.windmill} power from the wind. Must stand outdoors under open sky. Anything touching it (axle, gear, pump, millstone) is driven by it.` }),
+  waterwheel: B({ id: 'waterwheel', name: 'Water Wheel', w: 1, h: 1, glyphs: 'Φ', fg: '#80c0ff', needs: [{ type: 'log', n: 3 }], work: 160, menu: 'machines', machine: true, power: POWER.waterwheel, desc: `Makes ${POWER.waterwheel} power. Build it on the bank, right next to deep water (the river, or a channel fed from it).` }),
+  axle: B({ id: 'axle', name: 'Axle', w: 1, h: 1, glyphs: '═', fg: '#c79a55', needs: [{ type: 'log', n: 1 }], work: 40, menu: 'machines', machine: true, power: -1, tile: undefined, desc: 'Carries power in a line from one machine to the next. Drag to lay a run. Can be walked over. Also connects to an axle or gear directly above or below.' }),
+  gear: B({ id: 'gear', name: 'Gear Assembly', w: 1, h: 1, glyphs: '*', fg: '#c0c0d0', needs: [{ type: 'mechanism', n: 1 }], work: 60, menu: 'machines', machine: true, power: -2, desc: 'Joins machines in any direction, including straight up and down. Link a lever to it to disengage it: the cheapest on/off switch for a pump.' }),
+  pump: B({ id: 'pump', name: 'Screw Pump', w: 1, h: 1, glyphs: '÷', fg: '#80c0ff', needs: [{ type: ['block', 'boulder', 'log'], n: 1 }, { type: 'mechanism', n: 1 }], work: 150, menu: 'machines', machine: true, power: -10, blocks: true, desc: 'Built over a hole (channel one). While powered it lifts water or magma from below and pours it out onto the floor beside it. Lifts magma to forges, floods rooms, drains pits.' }),
+  millstone: B({ id: 'millstone', name: 'Millstone', w: 3, h: 3, glyphs: '░═░║☼║░═░', fg: '#d8d0c0', needs: [{ type: 'boulder', n: 1 }, { type: 'mechanism', n: 1 }], work: 150, menu: 'production', shop: true, machine: true, power: -10, desc: 'Grinds cave wheat into flour and sweet pods into sugar: four cookable portions from one plant. Only works while a windmill or water wheel is turning it.' }),
   well: B({ id: 'well', name: 'Well', w: 1, h: 1, glyphs: 'O', fg: '#80c0ff', needs: [{ type: ['block', 'boulder'], n: 2 }], work: 150, menu: 'furniture', desc: 'Safe drinking water for the wounded (and the desperate). Needs water somewhere below it.' }),
 };
 
@@ -469,6 +480,8 @@ export interface Recipe {
   fuel?: boolean; // needs a fuel item unless the shop is magma powered
   special?: 'butcher' | 'brew' | 'cook' | 'smelt';
 }
+/** what can go into a cooked meal */
+export const COOKABLE = ['plant', 'meat', 'fish', 'flour'];
 const R: Recipe[] = [];
 const wood = (id: string, name: string, n = 1, work = 220) =>
   R.push({ id: 'c_' + id, name: name, shop: ['carpenter'], labor: 'carpenter', work, in: [{ type: 'log', n: 1 }], out: [{ type: id, n }] });
@@ -506,8 +519,10 @@ R.push(
   { id: 'craft_bone', name: 'Make bone crafts', shop: ['craftsdwarf'], labor: 'craft', work: 240, in: [{ type: 'bone', n: 1 }], out: [{ type: 'craft', n: 3, mat: 'bone' }] },
   { id: 'totem', name: 'Make totem', shop: ['craftsdwarf'], labor: 'craft', work: 200, in: [{ type: 'skull', n: 1 }], out: [{ type: 'totem', n: 1, mat: 'bone' }] },
   { id: 'brew', name: 'Brew drink', shop: ['still'], labor: 'brew', work: 260, in: [{ type: 'plant', n: 1, tag: 'brewable' }, { type: 'barrel', n: 1, tag: 'emptybarrel' }], out: [], special: 'brew' },
-  { id: 'meal', name: 'Cook easy meal', shop: ['kitchen'], labor: 'cook', work: 220, in: [{ type: ['plant', 'meat', 'fish'], n: 2, tag: 'cookable' }], out: [], special: 'cook' },
-  { id: 'feast', name: 'Cook lavish meal', shop: ['kitchen'], labor: 'cook', work: 360, in: [{ type: ['plant', 'meat', 'fish'], n: 4, tag: 'cookable' }], out: [], special: 'cook' },
+  { id: 'meal', name: 'Cook easy meal', shop: ['kitchen'], labor: 'cook', work: 220, in: [{ type: COOKABLE, n: 2, tag: 'cookable' }], out: [], special: 'cook' },
+  { id: 'feast', name: 'Cook lavish meal', shop: ['kitchen'], labor: 'cook', work: 360, in: [{ type: COOKABLE, n: 4, tag: 'cookable' }], out: [], special: 'cook' },
+  { id: 'mill_wheat', name: 'Mill cave wheat into flour', shop: ['millstone'], labor: 'cook', work: 160, in: [{ type: 'plant', n: 1, sub: 'cave_wheat' }], out: [{ type: 'flour', n: 4, mat: 'none', sub: 'dwarven wheat flour' }, { type: 'seed', n: 1, mat: 'none', sub: 'cave_wheat' }] },
+  { id: 'mill_sugar', name: 'Mill sweet pods into sugar', shop: ['millstone'], labor: 'cook', work: 160, in: [{ type: 'plant', n: 1, sub: 'sweet_pod' }], out: [{ type: 'flour', n: 4, mat: 'none', sub: 'dwarven sugar' }, { type: 'seed', n: 1, mat: 'none', sub: 'sweet_pod' }] },
   { id: 'butcher', name: 'Butcher an animal', shop: ['butcher'], labor: 'cook', work: 200, in: [{ type: 'corpse', n: 1, tag: 'butcherable' }], out: [], special: 'butcher' },
   { id: 'tan', name: 'Tan a hide', shop: ['tannery'], labor: 'craft', work: 200, in: [{ type: 'hide', n: 1 }], out: [{ type: 'leather', n: 1, mat: 'leather' }] },
   { id: 'l_mail', name: 'Make leather armor', shop: ['leatherworks'], labor: 'craft', work: 300, in: [{ type: 'leather', n: 1 }], out: [{ type: 'mail', n: 1, mat: 'leather' }] },

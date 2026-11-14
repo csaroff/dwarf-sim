@@ -107,12 +107,13 @@ export function buildingPanel(g: Game, b: Building, linking: boolean): string {
     const c = g.units.get(b.caged || 0);
     h += whys([c ? `Holding ${g.unitName(c)}. Removing the trap sets it loose.` : 'Armed.']);
   }
+  if (d.machine) h += `<div class="status ${b.powered ? '' : 'warn'}">${b.powered ? 'Turning' : 'Not turning'}</div>${whys([b.pwr || 'Not connected to anything yet.'].concat(b.type === 'gear' ? [b.open ? 'Disengaged by its lever.' : 'Engaged. Link a lever to switch it.'] : []))}`;
   if (b.type === 'bridge' || b.type === 'floodgate') h += whys([b.type === 'bridge' ? (b.open ? 'Raised: the gap is open.' : 'Lowered: can be walked on.') : b.open ? 'Open: fluids and dwarves can pass.' : 'Closed.', 'Operated by a linked lever.']);
   if (b.type === 'lever') {
     h += `<h3>Lever</h3>`;
     const links = (b.links || []).map((id) => g.buildings.get(id)).filter((x): x is Building => !!x);
     h += `<div class="list">${links.map((t) => `<div>→ ${esc(g.buildingName(t))} ${btn('unlink', 'unlink', `${b.id}:${t.id}`)}</div>`).join('') || '<div class="sub">Not linked to anything yet.</div>'}</div>`;
-    h += `<div class="row">${btn(linking ? 'Click a bridge, floodgate or door…' : 'Link to…', 'link', b.id, linking ? 'on' : '')}${btn(b.pull ? 'Pull ordered' : 'Pull the lever', 'pull', b.id, b.pull ? 'on' : '')}</div>`;
+    h += `<div class="row">${btn(linking ? 'Click a bridge, floodgate, door or gear…' : 'Link to…', 'link', b.id, linking ? 'on' : '')}${btn(b.pull ? 'Pull ordered' : 'Pull the lever', 'pull', b.id, b.pull ? 'on' : '')}</div>`;
     if (b.pull) h += whys([explainTask(g, 'haul', (u) => tryPull(g, u, b), 'b' + b.id)]);
   }
   if (d.shop) {

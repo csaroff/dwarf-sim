@@ -3,12 +3,12 @@ import { MAT, T, TICKS_DAY } from '../src/sim/defs';
 import { beginMood, computeAlerts } from '../src/sim/events';
 import { Game, MOON_DAYS } from '../src/sim/game';
 import { megabeast, necroSiege, werebeast } from '../src/sim/night';
-import { DG, canPlace, explainTask, placeBuilding, tryDesig } from '../src/sim/jobs';
+import { DG, canPlace, explainTask, placeBuilding, toggleLever, tryDesig } from '../src/sim/jobs';
 import { explainUnit, fallDamage, killUnit, lineOfSight } from '../src/sim/life';
 import { optionsAt, order, setDraft } from '../src/sim/orders';
 import { step } from '../src/sim/sim';
 import { WH } from '../src/sim/world';
-import { cell, dwarf, flatGame, give, room, run } from './helpers';
+import { built, cell, dwarf, flatGame, give, room, run } from './helpers';
 
 const alertText = (g: Game) => computeAlerts(g).map((a) => `${a.text}: ${a.detail}`).join('\n');
 
@@ -494,6 +494,82 @@ describe('clothing', () => {
     expect(u.wear).toBe(100);
     expect(g.count((i) => i.type === 'clothes')).toBe(0);
     expect(u.thoughts.some((t) => /fresh clothes/.test(t.text))).toBe(true);
+  });
+});
+
+describe('machinery', () => {
+  test('a millstone only grinds while a windmill turns it, and says what is missing', () => {
+    const g = flatGame();
+    dwarf(g, 40, 40, ['cook']);
+    g.spawnItem('plant', MAT.none, cell(41, 41), 2, { sub: 'cave_wheat' });
+    const mill = built(g, 'millstone', 44, 39);
+    mill.bills.push({ recipe: 'mill_wheat', mode: 'count', n: 1, paused: false });
+
+    // nothing drives it: the work order says so
+    run(g, 60);
+    expect(mill.bills[0].why).toMatch(/not turning: not connected to a windmill or water wheel/);
+
+    // a windmill five tiles away is not connected until axles join the two
+    const wind = built(g, 'windmill', 52, 39);
+    run(g, 40);
+    expect(wind.powered).toBe(true);
+    expect(mill.powered).toBe(false);
+    for (let x = 47; x <= 51; x++) built(g, 'axle', x, 40);
+    run(g, 40);
+    expect(mill.powered).toBe(true);
+    expect(mill.pwr).toMatch(/makes 20 power and uses 15/);
+
+    // one plant becomes four portions of flour, and the seed comes back
+    run(g, 1500, () => g.count((i) => i.type === 'flour') > 0);
+    expect(g.count((i) => i.type === 'flour')).toBe(4);
+    expect(g.count((i) => i.type === 'seed')).toBe(1);
+  });
+
+  test('too many machines on one windmill: nothing turns, and the reason gives the numbers', () => {
+    const g = flatGame();
+    const wind = built(g, 'windmill', 40, 40);
+    const a = built(g, 'millstone', 43, 40);
+    const b = built(g, 'millstone', 37, 40);
+    run(g, 40);
+    expect(a.powered).toBe(true); // 20 made, 20 used: just enough
+    built(g, 'axle', 41, 43);
+    run(g, 40);
+    expect(wind.powered).toBe(false);
+    expect(b.pwr).toMatch(/overloaded: the network needs 21 power but makes only 20/);
+  });
+
+  test('a screw pump lifts water out of a pit; a lever on a gear switches it off', () => {
+    const g = flatGame();
+    // a flooded chamber one level down, with a hole in its roof
+    room(g, 39, 39, 41, 41, 19);
+    const below: number[] = [];
+    for (let y = 39; y <= 41; y++) for (let x = 39; x <= 41; x++) below.push(cell(x, y, 19));
+    for (const c of below) g.w.water[c] = 7;
+    g.w.setTile(cell(40, 40), T.Open);
+    const total = () => below.reduce((n, c) => n + g.w.water[c], 0);
+
+    const pump = built(g, 'pump', 40, 40);
+    const gear = built(g, 'gear', 40, 41);
+    built(g, 'windmill', 39, 42);
+    const lever = built(g, 'lever', 45, 45);
+    lever.links = [gear.id];
+
+    const before = total();
+    run(g, 120);
+    expect(pump.powered).toBe(true);
+    // water came up: there is less below, and it was poured out on the surface (where it spreads and dries)
+    expect(total()).toBeLessThan(before);
+    expect(g.w.water[cell(39, 40)] + g.w.water[cell(41, 40)] + g.w.water[cell(40, 39)]).toBeGreaterThan(0);
+
+    // disengage the gear: the pump is cut off and stops
+    toggleLever(g, lever);
+    run(g, 40);
+    expect(pump.powered).toBe(false);
+    expect(pump.pwr).toMatch(/not connected to a windmill/);
+    // nothing more is lifted (what was poured out up top may trickle back down the hole)
+    const stopped = total();
+    run(g, 200);
+    expect(total()).toBeGreaterThanOrEqual(stopped);
   });
 });
 

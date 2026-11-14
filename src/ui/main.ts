@@ -110,7 +110,7 @@ function rectCells(a: number, b: number): number[] {
 /** where a building of the current tool would go for the hover cell (and drag start) */
 function footprint(t: Tool, a: number, b: number) {
   const d = BUILDINGS[t.build!];
-  if (d.tile !== undefined || t.build === 'bridge') return rectOf(a, b);
+  if (d.tile !== undefined || t.build === 'bridge' || t.build === 'axle') return rectOf(a, b);
   const x0 = X(b) - (d.w >> 1), y0 = Y(b) - (d.h >> 1);
   return { x0, y0, x1: x0 + d.w - 1, y1: y0 + d.h - 1 };
 }
@@ -146,7 +146,7 @@ function applyTool(t: Tool, a: number, b: number) {
   } else if (t.build) {
     const d = BUILDINGS[t.build];
     const r = footprint(t, a, b);
-    if (d.tile !== undefined) {
+    if (d.tile !== undefined || t.build === 'axle') {
       let n = 0, why = '';
       for (const c of cells) {
         const can = canPlace(g, t.build, X(c), Y(c), Z(c));
@@ -266,10 +266,10 @@ canvas.addEventListener('pointerup', (e) => {
   }
   if (linking) {
     const lever = g.buildings.get(linking), t = g.buildingAt(cell);
-    if (lever && t && ['bridge', 'floodgate', 'door'].includes(t.type)) {
+    if (lever && t && ['bridge', 'floodgate', 'door', 'gear'].includes(t.type)) {
       lever.links = [...(lever.links || []).filter((i) => i !== t.id), t.id];
       linking = 0;
-    } else flash('Levers link to bridges, floodgates and doors');
+    } else flash('Levers link to bridges, floodgates, doors and gear assemblies');
     return ui();
   }
   if (cell !== d.cell) {
@@ -585,7 +585,7 @@ function ui() {
 
   // toolbar
   const cats = Object.keys(TOOLS);
-  set('toolbar', `<div class="desc">${tool ? `<b class="amber">${esc(tool.label)}</b> — ${esc(tool.desc)} <span class="sub">(right-click or Esc to stop)</span>` : linking ? 'Click the bridge, floodgate or door this lever should operate.' : ''}</div>
+  set('toolbar', `<div class="desc">${tool ? `<b class="amber">${esc(tool.label)}</b> — ${esc(tool.desc)} <span class="sub">(right-click or Esc to stop)</span>` : linking ? 'Click the bridge, floodgate, door or gear assembly this lever should operate.' : ''}</div>
     <div class="tools">${cat ? TOOLS[cat].map((t) => b(t.label, 'tool', t.id, tool?.id === t.id, esc(t.desc))).join('') : ''}</div>
     <div class="cats">${cats.map((c) => b(c, 'cat', c, cat === c)).join('')}</div>`);
 
@@ -655,7 +655,7 @@ function loop() {
   if (ov.hover >= 0) {
     if (tool?.build) {
       const r = footprint(tool, drag ? drag.cell : ov.hover, ov.hover);
-      const single = BUILDINGS[tool.build].tile === undefined;
+      const single = BUILDINGS[tool.build].tile === undefined && tool.build !== 'axle';
       ov.rect = { ...r, ok: single ? canPlace(g, tool.build, r.x0, r.y0, R.cam.z, r.x1 - r.x0 + 1, r.y1 - r.y0 + 1).ok : true };
     } else if (drag && !drag.pan && (tool || ov.hover !== drag.cell)) ov.rect = { ...rectOf(drag.cell, ov.hover), ok: true };
   }
