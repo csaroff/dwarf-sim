@@ -494,7 +494,11 @@ export class World {
     return out;
   }
   load(data: Record<string, string>) {
-    for (const k of World.GRIDS) unrle(data[k], this[k]);
+    for (const k of World.GRIDS) {
+      const n = unrle(data[k], this[k]);
+      // a fortress saved when the map was not as tall: the extra levels on top are open, visible sky
+      if (k === 'flag' && n < this.flag.length) this.flag.fill(F.Revealed, n);
+    }
     this.active = new Set(JSON.parse(data.active || '[]'));
     this.regionsDirty = true;
     this.version++;
@@ -514,13 +518,14 @@ function rle(a: Uint8Array): string {
   }
   return parts.join(',');
 }
-function unrle(s: string, a: Uint8Array) {
+function unrle(s: string, a: Uint8Array): number {
   let i = 0;
-  if (!s) return;
+  if (!s) return a.length;
   for (const p of s.split(',')) {
     const [c, v] = p.split(':');
     const n = parseInt(c, 36), val = parseInt(v, 36);
     a.fill(val, i, i + n);
     i += n;
   }
+  return i;
 }

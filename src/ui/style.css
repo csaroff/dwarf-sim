@@ -50,10 +50,10 @@ kbd { border: 1px solid var(--line); padding: 0 4px; color: var(--amber); backgr
 .alert:hover .detail { display: block; }
 .alert:hover { border-color: var(--amber); border-left-color: var(--amber); }
 
-#depth { position: fixed; top: 38px; left: 6px; width: 40px; z-index: 6; border: 1px solid var(--line); font-size: 9.5px; line-height: 12px; }
-.zr { height: 12px; display: flex; justify-content: space-between; padding: 0 3px; cursor: pointer; color: #9a9282; }
+#depth { position: fixed; top: 38px; left: 6px; width: 40px; z-index: 6; border: 1px solid var(--line); font-size: 9.5px; line-height: 11px; }
+.zr { height: 11px; display: flex; justify-content: space-between; padding: 0 3px; cursor: pointer; color: #9a9282; }
 .zr:hover { color: #fff; outline: 1px solid var(--dim); }
-.zr.sky { background: #16233c; } .zr.surf { background: #1f3318; } .zr.under { background: #221a12; } .zr.cav { background: #16302c; } .zr.mag { background: #4a1808; }
+.zr.sky { background: #16233c; } .zr.mtn { background: #3a3a40; } .zr.surf { background: #1f3318; } .zr.under { background: #221a12; } .zr.cav { background: #16302c; } .zr.mag { background: #4a1808; }
 .zr.cur { outline: 1px solid var(--amber); color: #fff; font-weight: bold; background: #6a4a12; position: relative; z-index: 1; }
 .zr i { font-style: normal; color: #7ae07a; } .zr i.foe { color: #ff6a5a; }
 

@@ -8,11 +8,31 @@ import { computeAlerts } from '../src/sim/events';
 import { explainUnit } from '../src/sim/life';
 import { buildingPanel, cellPanel, laborsModal, legendsModal, stocksModal, tradeModal, unitPanel, zonePanel } from '../src/ui/panels';
 
+/**
+ * Where this player digs in. The stairwell goes three tiles up and left of this point, so the point is
+ * nudged until that tile is open ground: stairs cannot be carved into a tree. Decided once per fortress.
+ */
+const origins = new WeakMap<Game, { x: number; y: number }>();
+function origin(g: Game): { x: number; y: number } {
+  let o = origins.get(g);
+  if (o) return o;
+  o = { x: g.embark.x, y: g.embark.y };
+  search: for (let r = 0; r < 6; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+    const sx = g.embark.x + dx - 3, sy = g.embark.y + dy - 3;
+    if (g.w.tile[idx(sx, sy, g.w.surface[sx + sy * W])] === T.Floor) {
+      o = { x: g.embark.x + dx, y: g.embark.y + dy };
+      break search;
+    }
+  }
+  origins.set(g, o);
+  return o;
+}
 /** the stairwell starts at ground level of its own column, which is not always the wagon's level */
-const stairTop = (g: Game) => g.w.surface[g.embark.x - 3 + (g.embark.y - 3) * W];
+const stairTop = (g: Game) => g.w.surface[origin(g).x - 3 + (origin(g).y - 3) * W];
 
 export function found(g: Game) {
-  const { x, y } = g.embark;
+  const { x, y } = origin(g);
   const z = stairTop(g);
   const sz = (xx: number, yy: number) => g.w.surface[xx + yy * W];
   const cells: number[] = [];
@@ -79,7 +99,7 @@ export function queue(g: Game) {
 }
 /** periodic chores: place furniture, mark game for hunting, draft everyone while enemies are about */
 export function upkeep(g: Game) {
-  const { x, y } = g.embark;
+  const { x, y } = origin(g);
   const z = stairTop(g);
   let k = 0;
   for (const type of ['bed', 'bed', 'bed', 'bed', 'coffin', 'coffin', 'table', 'chair', 'cagetrap', 'door']) {

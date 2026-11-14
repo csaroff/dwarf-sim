@@ -33,8 +33,9 @@ other emergencies pause the game.
 
 ## What is in
 
-- **World**: 96×96×32 map with soil and stone layers, 87 materials, ore veins, gems, a river, two cavern
-  layers, a magma sea, and something at the bottom. Seasons change the surface.
+- **World**: 96×96×48 map. A river in the north, rolling wooded ground, and a mountain range along the
+  south edge with the wagon at its foot. Below: soil and stone layers, 87 materials, ore veins, gems,
+  two cavern layers, a magma sea, and something at the bottom. Seasons change the surface.
 - **Dwarves**: hunger, thirst, sleep, alcohol, clothing, leisure and worship; mood and thoughts; skills;
   wounds per body part, poison; tantrums; strange moods that produce usable artifacts; marriages,
   children and pets.

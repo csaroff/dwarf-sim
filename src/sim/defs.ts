@@ -3,7 +3,7 @@
 
 export const W = 96;
 export const H = 96;
-export const D = 32;
+export const D = 48; // 23 levels of rock below the river, 24 of hill, mountain and sky above it
 export const N = W * H * D;
 
 export const TICKS_DAY = 1800;

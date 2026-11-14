@@ -8,7 +8,7 @@
 // Because every task goes through a tryX function, the game can always answer "why is nobody doing this?"
 // (explainTask) and "why can't this dwarf do it?" (the right-click menu shows the reason).
 import {
-  BUILDINGS, CREATURES, CROPS, F, FIRST_NAMES, ITEMS, QUALITY, TRAP_WEAPONS, Ing, LABORS, LABOR_NAME, Labor, MAT, MATS, PLANT, PLANTS, RECIPES, Recipe, T, TICKS_DAY, plantOf, matOf,
+  BUILDINGS, CREATURES, CROPS, D, F, FIRST_NAMES, ITEMS, QUALITY, TRAP_WEAPONS, Ing, LABORS, LABOR_NAME, Labor, MAT, MATS, PLANT, PLANTS, RECIPES, Recipe, T, TICKS_DAY, plantOf, matOf,
 } from './defs';
 import { Game, MAX_AMMO, MAX_STACK } from './game';
 import type { Bill, Building, Can, Item, Job, Unit, Zone } from './types';
@@ -161,7 +161,7 @@ function looseChunk(g: Game, c: number, seen: Set<number>): number[] {
     if (w.tile[k - 96] !== T.Open) add(k - 96);
     if (w.tile[k + 96] !== T.Open) add(k + 96);
     if (solid(k - WH)) add(k - WH);
-    if (z < 31 && solid(k) && w.tile[k + WH] !== T.Open) add(k + WH);
+    if (z < D - 1 && solid(k) && w.tile[k + WH] !== T.Open) add(k + WH);
   }
   if (held) {
     // remember everything explored: it is all attached to something big
@@ -705,12 +705,12 @@ export function finishBuilding(g: Game, u: Unit | null, b: Building) {
         o.path = null;
       }
       const up = c + WH;
-      if (Z(up) < 32 && w.tile[up] === T.Open) {
+      if (Z(up) < D && w.tile[up] === T.Open) {
         w.flag[up] |= F.Built;
         w.setTile(up, T.Floor, b.mat);
       }
     }
-    if (d.tile === T.Ramp && Z(c) < 31 && w.tile[c + WH] !== T.Open && w.tile[c + WH] !== T.Wall) w.setTile(c + WH, T.Open);
+    if (d.tile === T.Ramp && Z(c) < D - 1 && w.tile[c + WH] !== T.Open && w.tile[c + WH] !== T.Wall) w.setTile(c + WH, T.Open);
     return;
   }
   if (firstMat && d.item) b.q = firstMat.q;

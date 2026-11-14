@@ -12,6 +12,8 @@ export const SHRUBS = PLANTS.filter((p) => p.kind === 'shrub').map((p) => p.id);
 /** which stone of a layer's family is found here (noise is bunched around 0.5, so stretch it) */
 const layer = (list: string[], n: number) => MAT[list[Math.floor(Math.max(0, Math.min(0.999, (n - 0.2) / 0.6)) * list.length)]];
 
+/** how many levels the tallest mountains rise above the hills */
+export const PEAK = 17;
 export const CAVERN1_Z = 15;
 export const CAVERN2_Z = 8;
 export const MAGMA_Z = 2; // top level of the magma sea
@@ -39,6 +41,10 @@ export function generate(w: World, seed: number): GenResult {
       }
     }
   }
+  // A mountain range runs along the southern edge: foothills, then cliffs and peaks up to PEAK levels
+  // above the hills. North of it the land stays low and rolling, down to the river.
+  const mtn = new Uint8Array(WH); // how many levels the mountains add to each column
+  const ridgeY = (x: number) => H - 9 + (noise2(x * 0.05, 7.7, seed + 61) - 0.5) * 10;
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       const c = x + y * W;
@@ -47,7 +53,13 @@ export function generate(w: World, seed: number): GenResult {
       h = Math.max(riverZ + 1, Math.min(riverZ + 5, h));
       if (rd < 7) h = Math.min(h, riverZ + 1 + Math.floor(rd / 3.5)); // valley
       if (rd < 1.6) h = riverZ;
-      w.surface[c] = h;
+      const dy = y - ridgeY(x);
+      let m = Math.max(0, 1 - (dy < 0 ? -dy / 26 : dy / 40)); // a long rise from the north; still high at the map edge
+      m = m * m * (3 - 2 * m);
+      const along = 0.55 + 0.45 * noise2(x * 0.06, 1.1, seed + 62); // peaks and passes along the range
+      const rough = 0.8 + 0.4 * fbm2(x * 0.09, y * 0.09, seed + 63, 3);
+      mtn[c] = Math.max(0, Math.min(PEAK, Math.floor(PEAK * m * along * rough)));
+      w.surface[c] = h + mtn[c];
     }
 
   // ---------------------------------------------------------- layers
@@ -58,7 +70,10 @@ export function generate(w: World, seed: number): GenResult {
       const h = w.surface[c];
       const sn = soilNoise(x, y);
       const soil = riverDist[c] < 5 ? MAT.sand : sn < 0.4 ? MAT.clay : sn > 0.62 ? MAT.sand : MAT.loam;
-      const soilDepth = 2 + (hash2(x >> 2, y >> 2, seed + 3) > 0.5 ? 1 : 0);
+      // soil thins out on the foothills; the mountains proper are bare rock
+      const bare = mtn[c] >= 3;
+      const soilDepth = bare ? 0 : 2 + (hash2(x >> 2, y >> 2, seed + 3) > 0.5 ? 1 : 0);
+      const rock = layer(METAMORPHIC, noise2(x * 0.04, y * 0.04, seed + 41)); // what the mountains are made of
       const wob = Math.floor(noise2(x * 0.07, y * 0.07, seed + 21) * 3);
       for (let z = 0; z < D; z++) {
         const i = idx(x, y, z);
@@ -68,7 +83,7 @@ export function generate(w: World, seed: number): GenResult {
         }
         if (z === h) {
           w.tile[i] = T.Floor;
-          w.mat[i] = soil;
+          w.mat[i] = bare ? rock : soil;
           continue;
         }
         w.tile[i] = T.Wall;
@@ -76,6 +91,7 @@ export function generate(w: World, seed: number): GenResult {
         let m: number;
         if (z === 0) m = MAT.slade;
         else if (depth <= soilDepth) m = soil;
+        else if (z > riverZ && mtn[c] >= 2) m = rock;
         else if (z + wob >= 18) m = layer(SEDIMENTARY, noise2(x * 0.05, y * 0.05, seed + 31));
         else if (z + wob >= 10) m = layer(METAMORPHIC, noise2(x * 0.04, y * 0.04, seed + 41));
         else m = layer(IGNEOUS, noise2(x * 0.05, y * 0.05, seed + 51));
@@ -133,6 +149,12 @@ export function generate(w: World, seed: number): GenResult {
   vein(MAT.bismuthinite, 8, 16, 5, 12);
   vein(MAT.garnierite, 3, 9, 5, 14);
   vein(MAT.native_platinum, 3, 8, 3, 8);
+  // the mountains carry their own ore, well above the plain (most of these land in open sky and do nothing)
+  vein(MAT.hematite, riverZ + 2, riverZ + PEAK, 40, 22);
+  vein(MAT.native_copper, riverZ + 2, riverZ + PEAK, 30, 20);
+  vein(MAT.coal, riverZ + 2, riverZ + PEAK, 24, 20);
+  vein(MAT.native_silver, riverZ + 4, riverZ + PEAK, 18, 16);
+  vein(MAT.native_gold, riverZ + 6, riverZ + PEAK, 12, 14);
   const gems = (mat: number, zLo: number, zHi: number, count: number) => {
     for (let v = 0; v < count; v++) {
       const x = rng.int(W), y = rng.int(H), z = rng.range(zLo, zHi);
@@ -159,6 +181,8 @@ export function generate(w: World, seed: number): GenResult {
   gems(MAT.aquamarine, 5, 12, 12);
   gems(MAT.topaz, 4, 10, 10);
   gems(MAT.sapphire, 3, 9, 10);
+  gems(MAT.rock_crystal, riverZ + 2, riverZ + PEAK, 90);
+  gems(MAT.garnet, riverZ + 4, riverZ + PEAK, 60);
 
   // ---------------------------------------------------------- caverns
   const cavern = (base: number, cseed: number, thresh: number, deep: boolean) => {
@@ -269,6 +293,15 @@ export function generate(w: World, seed: number): GenResult {
       const i = idx(x, y, h);
       const forest = fbm2(x * 0.06, y * 0.06, seed + 71, 2);
       const r = hash2(x, y, seed + 72);
+      if (mtn[c] >= 3) {
+        // bare rock: a few hardy pines on the lower slopes, nothing higher up
+        if (mtn[c] < 9 && r < 0.035) {
+          w.tile[i] = T.Tree;
+          w.plant[i] = PLANT.pine;
+          w.mat[i] = MAT.pine;
+        }
+        continue;
+      }
       if (r < (forest > 0.52 ? 0.11 : 0.015)) {
         // willows by the water, a mix of the rest elsewhere
         const k = hash2(x, y, seed + 73);
@@ -286,7 +319,18 @@ export function generate(w: World, seed: number): GenResult {
   for (let t = 0; t < 400; t++) {
     const x = rng.range(20, W - 21), y = rng.range(Math.floor(H * 0.42), H - 22);
     const h = w.surface[x + y * W];
-    let score = -Math.hypot(x - W / 2, y - H * 0.6) * 0.3;
+    // flat, open ground at the foot of the mountains: the taller the peaks close by, the better
+    let score = -Math.abs(x - W / 2) * 0.2;
+    if (mtn[x + y * W] > 0) score -= 100;
+    let peak = 0;
+    for (let dy = -16; dy <= 16; dy += 2)
+      for (let dx = -16; dx <= 16; dx += 2) if (inMap(x + dx, y + dy, 0)) peak = Math.max(peak, w.surface[x + dx + (y + dy) * W] - h);
+    score += peak * 5;
+    // and woods within a short walk
+    let woods = 0;
+    for (let dy = -12; dy <= 12; dy += 2)
+      for (let dx = -12; dx <= 12; dx += 2) if (inMap(x + dx, y + dy, 0) && w.tile[idx(x + dx, y + dy, w.surface[x + dx + (y + dy) * W])] === T.Tree) woods++;
+    score += Math.min(12, woods) * 3;
     for (let dy = -4; dy <= 4; dy++)
       for (let dx = -4; dx <= 4; dx++) {
         const hh = w.surface[x + dx + (y + dy) * W];

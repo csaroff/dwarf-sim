@@ -779,12 +779,15 @@ export class Game {
     return false;
   }
   randomEdgeCell(): number {
+    const home = idx(this.embark.x, this.embark.y, this.embark.z);
     for (let t = 0; t < 200; t++) {
       const side = this.rng.int(3); // not the river side (north)
       const k = this.rng.range(8, W - 9);
       const x = side === 0 ? 0 : side === 1 ? W - 1 : k;
       const y = side === 2 ? H - 1 : this.rng.range(Math.floor(H * 0.35), H - 2);
       const c = idx(x, y, this.w.surface[x + y * W]);
+      // visitors arrive on the low ground, somewhere they can walk to the wagon from: not on a mountain ledge
+      if (t < 150 && (this.w.surface[x + y * W] > this.embark.z + 3 || !this.w.connected(c, home))) continue;
       if (this.w.safe(c)) return c;
     }
     return idx(0, H - 1, this.w.surface[(H - 1) * W]);

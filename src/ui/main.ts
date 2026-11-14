@@ -553,8 +553,8 @@ function ui() {
   const b = (label: string, a: string, v: string | number, on = false, title = '') => `<button data-a="${a}" data-v="${v}" class="${on ? 'on' : ''}" title="${title}">${label}</button>`;
   const lvl = R.cam.z - g.embark.z;
   const [smin, smax] = surfaceRange();
-  const where = (z: number) => (z > smax ? 'sky' : z >= smin ? 'surf' : g.ev.magmaSeen && z <= MAGMA_Z ? 'mag' : (g.ev.cavern >= 1 && (z === CAVERN1_Z || z === CAVERN1_Z + 1)) || (g.ev.cavern >= 2 && (z === CAVERN2_Z || z === CAVERN2_Z + 1)) ? 'cav' : 'under');
-  const WHERE: Record<string, string> = { sky: 'sky', surf: 'surface', under: 'underground', cav: 'cavern', mag: 'magma sea' };
+  const where = (z: number) => (z > smax ? 'sky' : z > g.embark.z + 5 ? 'mtn' : z >= smin ? 'surf' : g.ev.magmaSeen && z <= MAGMA_Z ? 'mag' : (g.ev.cavern >= 1 && (z === CAVERN1_Z || z === CAVERN1_Z + 1)) || (g.ev.cavern >= 2 && (z === CAVERN2_Z || z === CAVERN2_Z + 1)) ? 'cav' : 'under');
+  const WHERE: Record<string, string> = { sky: 'sky', mtn: 'mountains', surf: 'surface', under: 'underground', cav: 'cavern', mag: 'magma sea' };
   set('top', `<span class="name">☼ ${esc(g.fortName)}</span><span class="date">${g.dateString()}</span><span class="wide" title="Werebeasts change when the moon is full" style="color:${g.fullMoon() ? '#fff' : '#8a8272'}">${g.fullMoon() ? '● full moon' : `☾ ${g.daysToMoon().toFixed(0)}d`}</span>
     ${stat('☺', pop, 1)}${stat('Drink', s.drink || 0, pop * 2)}${stat('Food', s.food || 0, pop * 2)}<span class="stat wide">Wealth <b>${g.wealth}☼</b></span>
     <span class="sp"></span>

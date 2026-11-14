@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { BUILDINGS, MAT, PLANT, SKILLS, T, TICKS_DAY, TICKS_YEAR } from '../src/sim/defs';
+import { BUILDINGS, MAT, PLANT, SKILLS, T, TICKS_DAY, TICKS_YEAR, W } from '../src/sim/defs';
 import { beast, beginMood, computeAlerts, raid, trade } from '../src/sim/events';
 import { Game, MOON_DAYS } from '../src/sim/game';
 import { birth, issueMandate, maybeMarry, petsAdopt } from '../src/sim/civics';
@@ -8,7 +8,7 @@ import { DG, canPlace, explainTask, placeBuilding, toggleLever, tryBill, tryDesi
 import { TERRITORY, explainUnit, fallDamage, killUnit, lineOfSight } from '../src/sim/life';
 import { optionsAt, order, setDraft } from '../src/sim/orders';
 import { step } from '../src/sim/sim';
-import { WH, dist } from '../src/sim/world';
+import { WH, dist, idx } from '../src/sim/world';
 import { unitPanel } from '../src/ui/panels';
 import { built, cell, dwarf, flatGame, give, room, run } from './helpers';
 
@@ -1509,6 +1509,29 @@ test('the dwarf panel renders whatever a dwarf is skilled at', () => {
   const archer = dwarf(g, 41, 41, []);
   archer.skills.shoot = 500;
   expect(unitPanel(g, archer, 1)).toMatch(/Proficient marksdwarf/);
+});
+
+test('the wagon arrives on flat wooded ground at the foot of tall mountains', () => {
+  for (const seed of [1, 42, 777]) {
+    const g = new Game(seed);
+    const { x, y, z } = g.embark;
+    let peak = 0, flat = 0, trees = 0;
+    for (let dy = -16; dy <= 16; dy++) for (let dx = -16; dx <= 16; dx++) {
+      const h = g.w.surface[x + dx + (y + dy) * W];
+      peak = Math.max(peak, h - z);
+      if (Math.max(Math.abs(dx), Math.abs(dy)) > 12 || Math.abs(h - z) > 1) continue;
+      flat++;
+      if (g.w.tile[idx(x + dx, y + dy, h)] === T.Tree) trees++;
+    }
+    // mountains worth the name within a short walk...
+    expect(peak, `seed ${seed}: height of the nearest peaks above the wagon`).toBeGreaterThanOrEqual(6);
+    // ...without giving up somewhere level to build, or wood to build with
+    expect(flat, `seed ${seed}: level tiles around the wagon`).toBeGreaterThan(350);
+    expect(trees, `seed ${seed}: trees on the level ground`).toBeGreaterThanOrEqual(8);
+    // migrants, caravans and raiders can all walk in
+    const home = idx(x, y, z);
+    for (let k = 0; k < 20; k++) expect(g.w.connected(home, g.randomEdgeCell())).toBe(true);
+  }
 });
 
 test('save and load round-trips a running fortress', () => {
