@@ -7,7 +7,8 @@ import { alarm, found, queue, upkeep } from './fortress';
 
 // Slow crash-hunt across several worlds and two game years, with every event enabled (raids, caravans,
 // moods, cavern creatures). Run with LONG=1 npx vitest run tests/long.test.ts
-const seeds = process.env.LONG ? [1, 2, 3, 42, 777] : [];
+// SEEDS=5,6,7 picks other worlds: useful for crash-hunting on maps the balance was never tuned against
+const seeds = process.env.LONG ? (process.env.SEEDS || '1,2,3,42,777').split(',').map(Number) : [];
 
 for (const seed of seeds) {
   test(`seed ${seed}: two years without a crash`, async () => {
