@@ -25,9 +25,11 @@ kbd { border: 1px solid var(--line); padding: 0 4px; color: var(--amber); backgr
 #top .name { color: var(--amber); font-weight: bold; overflow: hidden; text-overflow: ellipsis; min-width: 60px; }
 #top button { padding: 2px 5px; }
 #top .sp { min-width: 0; }
-@media (max-width: 1350px) { #top .wide { display: none; } }
-@media (max-width: 1200px) { #top .name { display: none; } }
-@media (max-width: 1130px) { #top .date { display: none; } }
+/* narrower windows shed the least useful parts first */
+@media (max-width: 1420px) { #top .wide { display: none; } }
+@media (max-width: 1330px) { #top .name { display: none; } }
+@media (max-width: 1260px) { #top .date { display: none; } }
+@media (max-width: 1080px) { #top button[data-v="legends"], #top button[data-a="ascii"], #top button[data-a="menu"], #top .sub { display: none; } }
 #top .sp { flex: 1; }
 #top .stat b { color: #fff; }
 #top .stat.bad b { color: var(--bad); }
