@@ -615,6 +615,12 @@ export function computeAlerts(g: Game): Alert[] {
   nightAlerts(g, out);
   machineAlerts(g, out);
   civicAlerts(g, out);
+  // ---- the alarm
+  if (g.ev.alarm) {
+    const danger = Array.from(g.units.values()).some((u) => u.faction === 'enemy' && !u.dead && u.state !== 'caged' && u.home === undefined) || ds.some((u) => u.state === 'were' || u.state === 'berserk');
+    const refuge = g.zonesOf('burrow').length > 0;
+    out.push({ id: 'alarm', sev: danger && refuge ? 'warn' : 'bad', text: danger ? 'Alarm raised' : 'Alarm still on', detail: `${danger ? 'Civilians have stopped work and are sheltering' : 'There is no enemy in sight, but the alarm is still raised and no civilian is working'}. ${refuge ? '' : 'There is no Refuge zone, so they just stay where they are: mark a safe room with Zones > Refuge (behind a door you can lock). '}Militia and drafted dwarves fight on. Press B (or the Alarm button) to ${danger ? 'call it off' : 'send everyone back to work'}.` });
+  }
   // ---- enemies
   const foes = Array.from(g.units.values()).filter((u) => u.faction === 'enemy' && !u.dead && u.state !== 'caged' && g.w.revealed(g.cellOf(u)) && u.kind !== 'kobold' && (u.home === undefined || !!u.target));
   // an enemy that has no route to anyone is a different problem from one at the gate

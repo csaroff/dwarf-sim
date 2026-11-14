@@ -673,6 +673,46 @@ describe('taverns and temples', () => {
   });
 });
 
+describe('the alarm', () => {
+  test('civilians drop their work and shelter in the refuge; militia do not; calling it off resumes work', () => {
+    const g = flatGame();
+    const hauler = dwarf(g, 40, 40, ['haul']);
+    const soldier = dwarf(g, 41, 40, ['haul']);
+    soldier.militia = true;
+    g.addZone('stockpile', [cell(30, 30), cell(31, 30), cell(32, 30), cell(33, 30)]);
+    g.spawnItem('log', MAT.oak, cell(42, 42), 1);
+    g.spawnItem('boulder', MAT.granite, cell(43, 43), 1);
+    g.spawnItem('log', MAT.pine, cell(44, 44), 1);
+    const refuge = g.addZone('burrow', [cell(60, 60), cell(61, 60), cell(60, 61), cell(61, 61)]);
+    run(g, 20);
+    expect(hauler.job?.type).toBe('haul');
+
+    g.ev.alarm = true;
+    run(g, 400, () => refuge.cells.includes(g.cellOf(hauler)));
+    expect(refuge.cells.includes(g.cellOf(hauler))).toBe(true);
+    expect(explainUnit(g, hauler).status).toMatch(/Sheltering in the refuge/);
+    // he stays there...
+    run(g, 400);
+    expect(refuge.cells.includes(g.cellOf(hauler))).toBe(true);
+    // ...while the militia carried on, and the alert says how to end it
+    expect(refuge.cells.includes(g.cellOf(soldier))).toBe(false);
+    expect(alertText(g)).toMatch(/Alarm still on.*Press B/s);
+
+    g.ev.alarm = false;
+    run(g, 1500, () => g.looseItems().length === 0);
+    expect(g.looseItems().length).toBe(0);
+  });
+
+  test('with no refuge zone the alarm says so instead of silently doing nothing', () => {
+    const g = flatGame();
+    const u = dwarf(g, 40, 40, ['haul']);
+    g.ev.alarm = true;
+    run(g, 30);
+    expect(explainUnit(g, u).lines.join(' ')).toMatch(/no Refuge zone to go to \(Zones > Refuge\)/);
+    expect(alertText(g)).toMatch(/There is no Refuge zone/);
+  });
+});
+
 describe('the mayor', () => {
   test('a big enough fortress elects a mayor, who complains about quarters and issues mandates', () => {
     const g = flatGame();

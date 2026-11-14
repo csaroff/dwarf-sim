@@ -58,6 +58,7 @@ const TOOLS: Record<string, Tool[]> = {
     { id: 'z_meeting', label: 'Meeting hall', zone: 'meeting', desc: 'Where idle dwarves gather.' },
     { id: 'z_hospital', label: 'Hospital', zone: 'hospital', desc: 'Beds inside become hospital beds: the wounded are carried here and treated.' },
     { id: 'z_fishing', label: 'Fishing', zone: 'fishing', desc: 'Mark shore tiles next to water.' },
+    { id: 'z_refuge', label: 'Refuge', zone: 'burrow', desc: 'Where civilians shelter when you raise the alarm (B). Pick a room deep inside, behind a door you can lock.' },
     { id: 'z_tavern', label: 'Tavern', zone: 'tavern', desc: 'Dwarves come here to drink and talk when they need to unwind. Furnish it and keep drink nearby.' },
     { id: 'z_temple', label: 'Temple', zone: 'temple', desc: 'Dwarves come here to pray. Statues and engravings make it a better one.' },
     { id: 'z_pasture', label: 'Pasture', zone: 'pasture', desc: 'Where tame animals graze.' },
@@ -347,6 +348,7 @@ window.addEventListener('keydown', (e) => {
     } else if (cat) cat = '';
     else deselect();
   } else if (k === 'r') act('draft', '');
+  else if (k === 'b') act('alarm', '');
   else if (k === 'l') modal = modal === 'labors' ? '' : 'labors';
   else if (k === 'k') modal = modal === 'stocks' ? '' : 'stocks';
   else if (k === 'j') modal = modal === 'legends' ? '' : 'legends';
@@ -391,6 +393,10 @@ function act(a: string, v: string, el?: HTMLElement) {
     case 'z': R.cam.z += +v; R.clamp(); break;
     case 'zset': R.cam.z = +v; R.clamp(); break;
     case 'ascii': R.setAscii(!R.ascii); break;
+    case 'alarm':
+      g.ev.alarm = !g.ev.alarm;
+      flash(g.ev.alarm ? (g.zonesOf('burrow').length ? 'Alarm raised: civilians to the refuge!' : 'Alarm raised — but there is no Refuge zone (Zones > Refuge)') : 'Alarm called off: back to work');
+      break;
     case 'cat': cat = cat === v ? '' : v; tool = null; break;
     case 'tool': tool = tool?.id === v ? null : TOOLS[cat].find((t) => t.id === v) || null; linking = 0; break;
     case 'alert': {
@@ -554,7 +560,7 @@ function ui() {
     ${b('▼', 'z', -1, false, 'Level down (Q)')}<span title="0 is the level the wagon arrived on. Shift+wheel also changes level; the gauge on the left jumps to any level">Level <b>${lvl > 0 ? '+' : ''}${lvl}</b> <span class="sub">${WHERE[where(R.cam.z)]}</span></span>${b('▲', 'z', 1, false, 'Level up (E)')}
     ${b('❚❚', 'speed', 0, speed === 0, 'Pause (Space)')}${b('▶', 'speed', 1, speed === 1)}${b('▶▶', 'speed', 2, speed === 2)}${b('▶▶▶', 'speed', 3, speed === 3)}
     ${b('Labors', 'modal', 'labors', modal === 'labors', 'L')}${b('Legends', 'modal', 'legends', modal === 'legends', 'The history of the fortress (J)')}${b('Stocks', 'modal', 'stocks', modal === 'stocks', 'K')}${b('Trade', 'modal', 'trade', modal === 'trade' || g.caravan?.state === 'trading', 'T')}
-    ${b(R.ascii ? 'ASCII' : 'Tiles', 'ascii', '', false, 'Switch between drawn tiles and classic ASCII (G)')}${b('♫', 'music', '', !music.paused, 'Music (M)')}${b('Save', 'save', '')}${b('?', 'modal', 'help', false, 'Help (H)')}${b('Menu', 'menu', '')}`);
+    ${b(g.ev.alarm ? '⚑ ALARM' : 'Alarm', 'alarm', '', !!g.ev.alarm, 'Raise or call off the alarm (B): civilians stop work and shelter in the Refuge zone; militia fight on')}${b(R.ascii ? 'ASCII' : 'Tiles', 'ascii', '', false, 'Switch between drawn tiles and classic ASCII (G)')}${b('♫', 'music', '', !music.paused, 'Music (M)')}${b('Save', 'save', '')}${b('?', 'modal', 'help', false, 'Help (H)')}${b('Menu', 'menu', '')}`);
 
   set('roster', ds.map((u) => {
     const e = explainUnit(g, u);

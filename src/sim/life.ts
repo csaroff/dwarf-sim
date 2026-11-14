@@ -702,6 +702,12 @@ function decide(g: Game, u: Unit) {
   if (busy && j!.forced && u.thirst < 120 && u.hunger < 140 && u.tired < 125) return;
   const urgent = u.thirst > 75 || u.hunger > 80 || u.tired > 96;
   const rest = needsRest(u);
+  // the alarm: civilians drop what they are doing (unless you ordered it) and head for the refuge
+  const sheltering = !!g.ev.alarm && !u.militia;
+  if (sheltering && busy && !j!.forced && j!.type !== 'shelter') {
+    endJob(g, u, 'the alarm was raised');
+    return decide(g, u);
+  }
   if (busy && !urgent && !rest) return;
   if (resting && u.thirst <= 70 && u.hunger <= 75) return;
 
@@ -733,6 +739,18 @@ function decide(g: Game, u: Unit) {
   if (u.state === 'melancholy') {
     if (!j) wanderTo(g, u, g.randomNear(here, 8), 200);
     u.whyIdle = 'Melancholy: has lost the will to work or eat.';
+    return;
+  }
+  if (sheltering) {
+    const zs = g.zonesOf('burrow');
+    let spot = -1;
+    for (const z of zs) for (let k = 0; k < 6 && spot < 0; k++) {
+      const c = z.cells[g.rng.int(z.cells.length)];
+      if (g.w.safe(c) && g.w.connected(here, c)) spot = c;
+    }
+    if (spot >= 0) return assign(g, u, mkJob('shelter', 'Sheltering in the refuge (alarm)', spot));
+    if (!j) wanderTo(g, u, g.randomNear(here, 2), 100);
+    u.whyIdle = zs.length ? 'The alarm is raised, but there is no path to the Refuge zone. Staying put.' : 'The alarm is raised, but there is no Refuge zone to go to (Zones > Refuge). Staying put instead of working.';
     return;
   }
   // long-neglected leisure comes before work; otherwise it fills idle time
@@ -777,6 +795,13 @@ function tryLeisure(g: Game, u: Unit, min: number): Job | null {
   }
   return null;
 }
+RUN.shelter = (g, u, j) => {
+  if (!g.ev.alarm) return 'done';
+  const w = walk(g, u, idx(j.x, j.y, j.z), false);
+  if (w === 'blocked') return 'done';
+  if (w === 'going') return 'run';
+  return ++j.t < 150 ? 'run' : 'done';
+};
 RUN.relax = (g, u, j) => {
   const w = walk(g, u, idx(j.x, j.y, j.z), false);
   if (w === 'blocked') return 'done';
