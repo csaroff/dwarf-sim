@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { MAT, PLANT, T, TICKS_DAY } from '../src/sim/defs';
-import { beast, beginMood, computeAlerts, trade } from '../src/sim/events';
+import { beast, beginMood, computeAlerts, raid, trade } from '../src/sim/events';
 import { Game, MOON_DAYS } from '../src/sim/game';
 import { birth, issueMandate, maybeMarry } from '../src/sim/civics';
 import { megabeast, necroSiege, werebeast } from '../src/sim/night';
@@ -835,6 +835,21 @@ describe('families', () => {
     expect(b.thoughts.some((t) => t.text === 'lost their spouse')).toBe(true);
     expect(other.thoughts.some((t) => t.text === 'lost their spouse')).toBe(false);
   });
+});
+
+test('children do not make a fortress look stronger to its enemies', () => {
+  const g = flatGame();
+  // ten adults and twenty children: a nursery, not an army
+  const adults = Array.from({ length: 10 }, (_, k) => dwarf(g, 40 + (k % 5), 40 + Math.floor(k / 5), []));
+  for (let k = 0; k < 20; k++) birth(g, adults[0], adults[1]);
+  expect(g.dwarves().length).toBe(30);
+
+  // a forgotten beast still keeps to its lair, as it would for ten dwarves
+  const b = beast(g, cell(70, 70))!;
+  expect(b.home).toBe(cell(70, 70));
+  // and the first raid is the pair of scouts ten dwarves would draw, not five
+  raid(g);
+  expect(Array.from(g.units.values()).filter((u) => u.kind === 'goblin').length).toBe(2);
 });
 
 describe('the mayor', () => {
