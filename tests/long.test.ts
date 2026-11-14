@@ -3,7 +3,7 @@ import { TICKS_DAY } from '../src/sim/defs';
 import { raid } from '../src/sim/events';
 import { Game } from '../src/sim/game';
 import { newGame, step } from '../src/sim/sim';
-import { alarm, found, queue, upkeep } from './fortress';
+import { alarm, found, queue, renderEverything, upkeep } from './fortress';
 
 // Slow crash-hunt across several worlds and two game years, with every event enabled (raids, caravans,
 // moods, cavern creatures). Run with LONG=1 npx vitest run tests/long.test.ts
@@ -29,6 +29,7 @@ for (const seed of seeds) {
       if (t === 2500) queue(g);
       if (t % 3000 === 2999) upkeep(g);
       if (t % 50 === 0) alarm(g);
+      if (t % (TICKS_DAY * 8) === 0) renderEverything(g); // every panel and menu, at twelve points in the fortress's life
       if (t === TICKS_DAY * 20) raid(g, 2);
       if (t === TICKS_DAY * 30) {
         const copy = Game.deserialize(g.serialize());

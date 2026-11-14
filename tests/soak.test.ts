@@ -3,6 +3,7 @@ import { BUILDINGS, H, PLANTS, T, W } from '../src/sim/defs';
 import { DG, placeBuilding } from '../src/sim/jobs';
 import { newGame, step } from '../src/sim/sim';
 import { idx } from '../src/sim/world';
+import { renderEverything } from './fortress';
 
 // A scripted "player" founds a basic fortress on a real generated map and lets it run for a season.
 // This is the smoke test for the whole simulation: nothing may throw, and the basics must function.
@@ -60,6 +61,8 @@ test('a simple fortress survives its first season on a generated map', () => {
       if (carp?.built) carp.bills.push({ recipe: 'c_bed', mode: 'count', n: 3, paused: false });
     }
   }
+  // every panel, modal and right-click menu renders for the fortress as it now stands
+  expect(() => renderEverything(g)).not.toThrow();
   const s = g.stocks();
   const info = { planted: g.crops.size, pop: g.dwarves().length, drink: s.drink, food: s.food, logs: s.log, beds: s.bed, still: still?.built, carp: carp?.built, desigs: g.desigs.size, alerts: g.alerts.map((a) => a.text + ': ' + a.detail), log: g.log.slice(-25).map((l) => l.text) };
   console.log(JSON.stringify(info, null, 1));

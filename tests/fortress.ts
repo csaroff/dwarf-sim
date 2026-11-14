@@ -4,6 +4,9 @@ import { Game } from '../src/sim/game';
 import { DG, placeBuilding } from '../src/sim/jobs';
 import { optionsAt, order, setDraft } from '../src/sim/orders';
 import { idx } from '../src/sim/world';
+import { computeAlerts } from '../src/sim/events';
+import { explainUnit } from '../src/sim/life';
+import { buildingPanel, cellPanel, laborsModal, legendsModal, stocksModal, tradeModal, unitPanel, zonePanel } from '../src/ui/panels';
 
 /** the stairwell starts at ground level of its own column, which is not always the wagon's level */
 const stairTop = (g: Game) => g.w.surface[g.embark.x - 3 + (g.embark.y - 3) * W];
@@ -126,4 +129,29 @@ export function alarm(g: Game) {
     const on = foes && (u.militia || !!(u.equip.weapon || u.equip.axe || u.equip.pick));
     if (u.drafted !== on) setDraft(g, u, on);
   }
+}
+
+/**
+ * Render every panel, modal and right-click menu the UI could show for this fortress.
+ * The sim tests never touch the UI code, so this is what catches a panel that throws on some
+ * state only a long game reaches (a dwarf with an unusual skill, a caged beast, a ghost).
+ */
+export function renderEverything(g: Game) {
+  for (const u of g.units.values()) {
+    explainUnit(g, u);
+    unitPanel(g, u, 1);
+  }
+  for (const b of g.buildings.values()) buildingPanel(g, b, false);
+  for (const z of g.zones.values()) zonePanel(g, z);
+  for (const c of Array.from(g.itemsAt.keys()).slice(0, 300)) cellPanel(g, c);
+  for (const c of Array.from(g.desigs).slice(0, 100)) cellPanel(g, c);
+  laborsModal(g);
+  stocksModal(g);
+  legendsModal(g);
+  tradeModal(g, new Set(), new Set(), '');
+  computeAlerts(g);
+  const d = g.dwarves()[0];
+  if (!d) return;
+  for (const u of g.units.values()) optionsAt(g, d, g.cellOf(u));
+  for (const b of g.buildings.values()) optionsAt(g, d, g.center(b));
 }
