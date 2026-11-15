@@ -8,7 +8,7 @@ import { DG, canPlace, explainTask, placeBuilding, toggleLever, tryBill, tryDesi
 import { TERRITORY, explainUnit, fallDamage, killUnit, lineOfSight } from '../src/sim/life';
 import { optionsAt, order, setDraft } from '../src/sim/orders';
 import { step } from '../src/sim/sim';
-import { WH, dist, idx } from '../src/sim/world';
+import { WH, cheb, dist, idx } from '../src/sim/world';
 import { unitPanel } from '../src/ui/panels';
 import { built, cell, dwarf, flatGame, give, room, run } from './helpers';
 
@@ -1532,6 +1532,86 @@ test('the wagon arrives on flat wooded ground at the foot of tall mountains', ()
     const home = idx(x, y, z);
     for (let k = 0; k < 20; k++) expect(g.w.connected(home, g.randomEdgeCell())).toBe(true);
   }
+});
+
+describe('body-blocking: walk past each other, never stand in the same place', () => {
+  /** a one-tile corridor running east from x0 to x1 along y, walled in on both sides */
+  function corridor(g: Game, x0: number, x1: number, y: number) {
+    for (let x = x0 - 2; x <= x1 + 2; x++) for (const dy of [-1, 1]) g.w.setTile(cell(x, y + dy), T.Wall, MAT.granite);
+  }
+
+  test('a dwarf standing in a one-tile corridor keeps a goblin from the dwarves behind him', () => {
+    const g = flatGame();
+    // a wall seals the farmer's side (west) off from the goblin's (east); the only way through is a corridor
+    for (let y = 30; y <= 50; y++) if (y !== 40) g.w.setTile(cell(45, y), T.Wall, MAT.granite);
+    corridor(g, 43, 47, 40);
+    const farmer = dwarf(g, 35, 40, []);
+    // a guard in armour, standing in the corridor. He is told to hold still: this is about his body, not his axe.
+    const guard = dwarf(g, 45, 40, []);
+    give(g, guard, 'shield', 'shield', MAT.steel);
+    give(g, guard, 'breastplate', 'body', MAT.steel);
+    give(g, guard, 'helm', 'head', MAT.steel);
+    guard.hp = guard.maxHp = 1e6;
+    guard.nextThink = 1e12;
+    // a goblin set on the farmer, and tough enough to keep trying for the whole test
+    const gob = g.addUnit('goblin', cell(55, 40), 'enemy');
+    gob.hp = gob.maxHp = 1e6;
+    gob.target = farmer.id;
+    gob.nextThink = 1e12;
+    farmer.nextThink = 1e12; // the farmer does not run off either
+
+    let through = false;
+    run(g, 900, () => {
+      expect(g.cellOf(gob)).not.toBe(g.cellOf(guard));
+      through = gob.x < 45;
+      return through;
+    });
+    // the goblin cannot walk through him, so it attacks him instead
+    expect(through).toBe(false);
+    expect(cheb(g.cellOf(gob), g.cellOf(guard))).toBeLessThanOrEqual(1);
+    expect(g.log.some((l) => /goblin/i.test(l.text) && l.text.includes(guard.name.split(' ')[0]))).toBe(true);
+  });
+
+  test('dwarves walk past each other in a one-tile corridor, so nobody gets stuck', () => {
+    const g = flatGame();
+    corridor(g, 40, 50, 40);
+    const a = dwarf(g, 40, 40, []);
+    const b = dwarf(g, 50, 40, []);
+    for (const u of [a, b]) setDraft(g, u, true);
+    // each is ordered to the other end: they have to pass in the middle
+    order(g, a, optionsAt(g, a, cell(50, 40)).find((o) => o.label === 'Move here')!);
+    order(g, b, optionsAt(g, b, cell(40, 40)).find((o) => o.label === 'Move here')!);
+    run(g, 400, () => g.cellOf(a) === cell(50, 40) && g.cellOf(b) === cell(40, 40));
+    expect(g.cellOf(a)).toBe(cell(50, 40));
+    expect(g.cellOf(b)).toBe(cell(40, 40));
+  });
+
+  test('nobody stops on a tile someone else is standing on', () => {
+    const g = flatGame();
+    // five dwarves all sent to the same spot: one gets it, the rest stop around it
+    const crowd = [0, 1, 2, 3, 4].map((k) => dwarf(g, 36 + k * 2, 36, []));
+    for (const u of crowd) {
+      setDraft(g, u, true);
+      order(g, u, optionsAt(g, u, cell(40, 44)).find((o) => o.label === 'Move here')!);
+    }
+    run(g, 300);
+    const spots = crowd.map((u) => g.cellOf(u));
+    expect(new Set(spots).size).toBe(crowd.length);
+    for (const c of spots) expect(cheb(c, cell(40, 44))).toBeLessThanOrEqual(1);
+  });
+
+  test('raiders spread out around their target instead of piling onto one tile', () => {
+    const g = flatGame();
+    const u = dwarf(g, 40, 40, []);
+    u.hp = u.maxHp = 1e6; // a punching bag: this is about where the goblins stand
+    u.labors.haul = 0;
+    setDraft(g, u, true);
+    const gobs = [0, 1, 2, 3].map((k) => g.addUnit('goblin', cell(55, 38 + k), 'enemy'));
+    run(g, 300);
+    for (const o of gobs) expect(cheb(g.cellOf(o), g.cellOf(u))).toBeLessThanOrEqual(1);
+    const where = [u, ...gobs].map((o) => g.cellOf(o));
+    expect(new Set(where).size).toBe(where.length);
+  });
 });
 
 test('save and load round-trips a running fortress', () => {
