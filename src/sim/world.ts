@@ -42,6 +42,10 @@ export class World {
   region = new Int32Array(N);
   regionsDirty = true;
   version = 0; // bumped on every map change (renderer / caches)
+  /** set by the game while one unit plans a route: cells it must not walk through (an enemy stands there) */
+  avoid: ((c: number) => boolean) | null = null;
+  /** set while planning a route to a work spot: spots someone else is already standing on */
+  taken: ((c: number) => boolean) | null = null;
 
   // fluids
   active = new Set<number>();
@@ -269,13 +273,14 @@ export class World {
       const c = pop();
       if (closed[c] === stampN) continue;
       closed[c] = stampN;
-      if (goals ? goals.has(c) : c === b) {
+      if ((goals ? goals.has(c) : c === b) && !(goals && this.taken && c !== a && this.taken(c))) {
         found = c;
         break;
       }
       const gc = g[c];
       this.neighbors(c, (n, cost) => {
         if (closed[n] === stampN) return;
+        if (this.avoid && n !== b && this.avoid(n)) return;
         const ng = gc + cost + (this.water[n] > 0 ? 1 : 0) + (brave && this.dangerous(n) ? 20 : 0);
         if (stamp[n] !== stampN || ng < g[n]) {
           stamp[n] = stampN;
@@ -284,7 +289,8 @@ export class World {
           push(n, ng + hfun(n));
         }
       }, brave);
-      if (brave && ++expanded > 30000) break;
+      // routing around enemies is worth a short detour, not a search of the whole map: past this, walk up and fight
+      if ((brave && ++expanded > 30000) || ((this.avoid || this.taken) && ++expanded > 5000)) break;
     }
     if (found < 0) return null;
     const path: number[] = [];

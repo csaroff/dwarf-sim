@@ -17,6 +17,7 @@ export function step(g: Game) {
   }
   if (g.tick % 20 === 0) updatePower(g);
   if (g.tick % 6 === 0) tickPumps(g);
+  g.indexUnits();
   for (const u of Array.from(g.units.values())) tickUnit(g, u);
   tickEvents(g);
 }

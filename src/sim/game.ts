@@ -9,6 +9,9 @@ import type { Alert, Building, Caravan, Item, Job, LogEntry, Unit, Zone } from '
 import { BLOCK_DECK, BLOCK_FLUID, BLOCK_WALK, DIRS8, WH, World, X, Y, Z, dist, idx, inMap } from './world';
 import { generate, generateFlat } from './worldgen';
 
+/** jobs that are only about being somewhere: these spread out rather than stack on one tile */
+const LOITER = new Set(['idle', 'move', 'drill', 'relax', 'pray', 'shelter', 'attack', 'flee']);
+
 export const MONTHS = ['Granite', 'Slate', 'Felsite', 'Hematite', 'Malachite', 'Galena', 'Limestone', 'Sandstone', 'Timber', 'Moonstone', 'Opal', 'Obsidian'];
 export const START_YEAR = 250;
 export const MAX_STACK = 20;
@@ -58,7 +61,8 @@ export class Game {
   claims = new Map<string, number>(); // job key -> unit id
   spRes = new Map<number, number>(); // stockpile cell -> unit id bringing something there
   alerts: Alert[] = [];
-  unitsAt = new Map<number, number[]>();
+  /** who is standing where: rebuilt every tick, kept up to date as units move */
+  unitsAt = new Map<number, Unit[]>();
   private haulCache: number[] = [];
   private haulCacheTick = -999;
   stockCache: Record<string, number> = {};
@@ -419,6 +423,7 @@ export class Game {
       trait: '', likes: '', age: 0, arrived: this.tick, kills: 0, ...extra,
     };
     this.units.set(u.id, u);
+    this.place(u, cell);
     return u;
   }
   addDwarf(cell: number, skilled: string[] = []): Unit {
@@ -505,7 +510,56 @@ export class Game {
     for (const u of this.units.values()) if (!u.dead && u.x === x && u.y === y && u.z === z && u.state !== 'caged') out.push(u);
     return out;
   }
+  /** a body takes up its tile: the dead, the downed, the caged, the carried and ghosts do not */
+  isBody(o: Unit) {
+    return !o.dead && !o.downSince && o.state !== 'caged' && !o.carriedBy && o.kind !== 'ghost';
+  }
+  indexUnits() {
+    this.unitsAt.clear();
+    for (const u of this.units.values()) if (this.isBody(u)) this.place(u, this.cellOf(u));
+  }
+  private place(u: Unit, c: number) {
+    const a = this.unitsAt.get(c);
+    if (a) a.push(u);
+    else this.unitsAt.set(c, [u]);
+  }
+  /** an enemy of u standing at c: u cannot walk through it */
+  blockerAt(u: Unit, c: number): Unit | undefined {
+    return this.unitsAt.get(c)?.find((o) => o !== u && this.isBody(o) && this.hostile(u, o) && o.x === X(c) && o.y === Y(c) && o.z === Z(c));
+  }
+  /**
+   * Is u just standing about (or fighting), so it can stand anywhere near where it meant to be? Someone at a
+   * workbench, in bed or at a meal is where the job needs them, and may share a tile while they do it.
+   */
+  loitering(u: Unit) {
+    const t = u.job?.type;
+    return !u.isDwarf || !t || LOITER.has(t);
+  }
+  /** someone else who has stopped at c (rather than passing through): a loiterer should not stop there too */
+  standerAt(u: Unit, c: number): Unit | undefined {
+    return this.unitsAt.get(c)?.find((o) => o !== u && this.isBody(o) && (!o.path || !o.path.length) && o.x === X(c) && o.y === Y(c) && o.z === Z(c));
+  }
+  /**
+   * A route for u: around enemies and onto a free work spot when there is one nearby, otherwise straight
+   * on (and the enemy in the way gets fought, the dwarf at the work spot waited out).
+   */
+  pathFor(u: Unit, from: number, to: number, adjacent: boolean, brave = false, includeSelf = true): number[] | null {
+    if (this.unitsAt.size) {
+      this.w.avoid = (c) => !!this.blockerAt(u, c);
+      this.w.taken = adjacent && this.loitering(u) ? (c) => !!this.standerAt(u, c) : null;
+      const p = this.w.findPath(from, to, adjacent, brave, includeSelf);
+      this.w.avoid = this.w.taken = null;
+      if (p) return p;
+    }
+    return this.w.findPath(from, to, adjacent, brave, includeSelf);
+  }
   moveUnit(u: Unit, cell: number) {
+    const was = this.unitsAt.get(this.cellOf(u));
+    if (was) {
+      const k = was.indexOf(u);
+      if (k >= 0) was.splice(k, 1);
+    }
+    if (this.isBody(u)) this.place(u, cell);
     u.x = X(cell);
     u.y = Y(cell);
     u.z = Z(cell);

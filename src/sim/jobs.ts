@@ -409,7 +409,13 @@ export function walk(g: Game, u: Unit, target: number, adjacent = false, selfOk 
   const key = target * 4 + (adjacent ? 1 : 0) + (selfOk ? 0 : 2);
   const here = idx(u.x, u.y, u.z);
   if (!u.path || u.pathGoal !== key) {
-    const p = g.w.findPath(here, target, adjacent, brave, selfOk);
+    // somebody is already standing on the exact spot: right next to it will do
+    if (!adjacent && g.loitering(u) && here !== target && Z(here) === Z(target) && cheb(here, target) <= 1 && g.standerAt(u, target)) {
+      u.path = [];
+      u.pathGoal = key;
+      return 'there';
+    }
+    const p = g.pathFor(u, here, target, adjacent, brave, selfOk);
     if (!p) return 'blocked';
     u.path = p;
     u.pathGoal = key;
@@ -422,6 +428,12 @@ export function walk(g: Game, u: Unit, target: number, adjacent = false, selfOk 
   const next = u.path[0];
   if (brave ? !g.w.passable(next) : !g.w.safe(next)) {
     u.path = null; // something changed: find another way next tick
+    return 'going';
+  }
+  if (g.blockerAt(u, next)) {
+    // an enemy in the way: friends walk past each other, enemies do not. Wait a moment, then look for a way round.
+    u.path = null;
+    u.moveCd = 6;
     return 'going';
   }
   u.path.shift();

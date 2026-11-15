@@ -1543,7 +1543,7 @@ describe('body-blocking: walk past each other, never stand in the same place', (
   test('a dwarf standing in a one-tile corridor keeps a goblin from the dwarves behind him', () => {
     const g = flatGame();
     // a wall seals the farmer's side (west) off from the goblin's (east); the only way through is a corridor
-    for (let y = 30; y <= 50; y++) if (y !== 40) g.w.setTile(cell(45, y), T.Wall, MAT.granite);
+    for (let y = 0; y < 96; y++) if (y !== 40) g.w.setTile(cell(45, y), T.Wall, MAT.granite);
     corridor(g, 43, 47, 40);
     const farmer = dwarf(g, 35, 40, []);
     // a guard in armour, standing in the corridor. He is told to hold still: this is about his body, not his axe.
@@ -1600,13 +1600,30 @@ describe('body-blocking: walk past each other, never stand in the same place', (
     for (const c of spots) expect(cheb(c, cell(40, 44))).toBeLessThanOrEqual(1);
   });
 
+  test('someone at work keeps their spot: only those standing about make room', () => {
+    // A worker shoved off the stove, the patient's bedside or the dining seat cannot finish the job, so it
+    // starts over (one fortress starved this way). Two can share a tile while one is busy there.
+    const g = flatGame();
+    const cook = dwarf(g, 40, 40, []);
+    cook.nextThink = 1e12;
+    cook.job = { type: 'craft', label: 'Cooking', step: 0, x: 40, y: 40, z: 20, t: 0, started: 0 };
+    const idler = dwarf(g, 44, 40, []);
+    setDraft(g, idler, true);
+    order(g, idler, optionsAt(g, idler, cell(40, 40)).find((o) => o.label === 'Move here')!);
+    run(g, 200);
+    expect(g.cellOf(cook)).toBe(cell(40, 40));
+    expect(g.cellOf(idler)).not.toBe(cell(40, 40));
+    expect(cheb(g.cellOf(idler), cell(40, 40))).toBeLessThanOrEqual(1);
+  });
+
   test('raiders spread out around their target instead of piling onto one tile', () => {
     const g = flatGame();
     const u = dwarf(g, 40, 40, []);
-    u.hp = u.maxHp = 1e6; // a punching bag: this is about where the goblins stand
-    u.labors.haul = 0;
-    setDraft(g, u, true);
+    // a punching bag that stays put: this is about where the goblins stand, not who wins
+    u.hp = u.maxHp = 1e6;
+    u.nextThink = 1e12;
     const gobs = [0, 1, 2, 3].map((k) => g.addUnit('goblin', cell(55, 38 + k), 'enemy'));
+    for (const o of gobs) o.hp = o.maxHp = 1e6; // and nobody breaks and runs
     run(g, 300);
     for (const o of gobs) expect(cheb(g.cellOf(o), g.cellOf(u))).toBeLessThanOrEqual(1);
     const where = [u, ...gobs].map((o) => g.cellOf(o));

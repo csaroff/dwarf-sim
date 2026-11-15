@@ -49,6 +49,8 @@ other emergencies pause the game.
 - **Machinery**: windmills, water wheels, axles, gears, screw pumps, millstones, with power networks.
 - **Combat**: melee and crossbows with line of sight, armor by body part, militia who arm and drill
   themselves, an alarm with a refuge, war dogs.
+- **Body-blocking** (as in RimWorld): friends walk through each other, enemies do not. A dwarf in a
+  one-tile corridor holds it; raiders spread out around a target instead of stacking on one tile.
 - **Threats**: 86 creatures. Goblin raids with archers, thieves, snatchers, building destroyers,
   werebeasts, necromancers and zombies, ghosts, vampires, generated forgotten beasts, megabeasts,
   cave-ins, damp and warm stone.

@@ -331,6 +331,13 @@ export function stepPath(g: Game, u: Unit): boolean {
     u.path = null;
     return false;
   }
+  const foe = g.blockerAt(u, next);
+  if (foe) {
+    // an enemy stands in the way: it has to be fought through, not walked through
+    if (u.faction === 'enemy' || u.state === 'berserk' || u.state === 'were') u.target = foe.id;
+    attack(g, u, foe);
+    return true;
+  }
   u.path.shift();
   g.moveUnit(u, next);
   u.moveCd = moveDelay(g, u);
@@ -353,7 +360,7 @@ export function chase(g: Game, u: Unit, t: Unit): boolean {
     return true;
   }
   if (!u.path || !u.path.length || (u.chaseAt !== tc && (g.tick + u.id) % 8 === 0)) {
-    const p = g.w.findPath(here, tc, true, false, false);
+    const p = g.pathFor(u, here, tc, true, false, false);
     if (!p) {
       u.path = null;
       return false;
@@ -675,7 +682,8 @@ function decide(g: Game, u: Unit) {
     }
     const gear = gearUp(g, u);
     if (gear) return assign(g, u, gear);
-    if (u.moveOrder >= 0 && here !== u.moveOrder && g.w.canReach(here, u.moveOrder, false)) return assign(g, u, mkJob('move', 'Moving to position', u.moveOrder));
+    const atPost = here === u.moveOrder || (u.moveOrder >= 0 && Z(here) === Z(u.moveOrder) && cheb(here, u.moveOrder) <= 1 && !!g.standerAt(u, u.moveOrder));
+    if (u.moveOrder >= 0 && !atPost && g.w.canReach(here, u.moveOrder, false)) return assign(g, u, mkJob('move', 'Moving to position', u.moveOrder));
     u.whyIdle = 'Drafted: standing by for your orders. Right-click a tile to move or an enemy to attack. Undraft (R) to return to work.';
     return;
   }
@@ -1229,6 +1237,32 @@ export function tickUnit(g: Game, u: Unit) {
   }
   else if (u.faction === 'fort') petTick(g, u);
   else if (u.job) runJob(g, u); // merchants are driven by events.ts
+  if ((g.tick + u.id) % 4 === 0) makeRoom(g, u);
+}
+/**
+ * Two bodies may pass through the same tile, but not stop on it. Whoever stopped there second steps aside,
+ * keeping next to what it is working on or fighting.
+ */
+function makeRoom(g: Game, u: Unit) {
+  if (u.dead || !g.isBody(u) || (u.path && u.path.length) || !g.loitering(u)) return;
+  const here = g.cellOf(u);
+  // the one that has to move is the loiterer: someone working here stays put
+  const other = g.standerAt(u, here);
+  if (!other || (other.id > u.id && g.loitering(other))) return;
+  const t = u.target ? g.units.get(u.target) : undefined;
+  const anchor = t && !t.dead ? g.cellOf(t) : u.job ? idx(u.job.x, u.job.y, u.job.z) : here;
+  let best = -1, bs = 1e9;
+  g.w.neighbors(here, (n) => {
+    if (g.unitsAt.get(n)?.some((o) => o !== u && g.isBody(o))) return;
+    const s = (Z(n) === Z(anchor) && cheb(n, anchor) <= 1 ? 0 : 10) + cheb(n, anchor) + (n === anchor ? 5 : 0);
+    if (s < bs) {
+      bs = s;
+      best = n;
+    }
+  });
+  if (best < 0) return;
+  g.moveUnit(u, best);
+  u.path = null;
 }
 
 // ------------------------------------------------------------------ explanations
