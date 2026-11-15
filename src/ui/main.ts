@@ -34,6 +34,8 @@ interface Tool {
   id: string;
   label: string;
   desc: string;
+  /** shortcut while its menu is open */
+  key?: string;
   desig?: number;
   zone?: Zone['kind'];
   build?: string;
@@ -41,16 +43,16 @@ interface Tool {
 }
 const TOOLS: Record<string, Tool[]> = {
   Orders: [
-    { id: 'dig', label: 'Mine', desig: DG.Dig, desc: 'Dig out walls, leaving a floor. Drag a rectangle. Unexplored rock can be marked too.' },
-    { id: 'stair', label: 'Stairs', desig: DG.Stair, desc: 'Carve up/down stairs. Stairs connect to stairs directly above and below: mark the same tile on each level (Q / E change level).' },
-    { id: 'channel', label: 'Channel', desig: DG.Channel, desc: 'Dig a hole in the floor, leaving a ramp on the level below. Good for moats, wells and pits. Careful: a piece of floor or rock cut off from everything around it caves in, along with whoever is on it.' },
-    { id: 'ramp', label: 'Ramp', desig: DG.Ramp, desc: 'Carve a wall into a ramp up to the level above.' },
-    { id: 'chop', label: 'Chop trees', desig: DG.Chop, desc: 'Fell trees for logs (needs an axe).' },
-    { id: 'gather', label: 'Gather plants', desig: DG.Gather, desc: 'Pick wild shrubs: berries to eat and brew.' },
-    { id: 'smooth', label: 'Smooth', desig: DG.Smooth, desc: 'Smooth natural stone walls and floors. Nicer rooms make happier dwarves.' },
-    { id: 'engrave', label: 'Engrave', desig: DG.Engrave, desc: 'Engrave smoothed stone. Dwarves admire engravings.' },
-    { id: 'unbuild', label: 'Remove construction', desig: DG.Remove, desc: 'Tear down constructed walls, floors, stairs and ramps.' },
-    { id: 'cancel', label: 'Cancel orders', erase: 'desig', desc: 'Erase designations in the rectangle.' },
+    { id: 'dig', key: 'm', label: 'Mine', desig: DG.Dig, desc: 'Dig out walls, leaving a floor. Drag a rectangle. Unexplored rock can be marked too.' },
+    { id: 'stair', key: 'i', label: 'Stairs', desig: DG.Stair, desc: 'Carve up/down stairs. Stairs connect to stairs directly above and below: mark the same tile on each level (Q / E change level).' },
+    { id: 'channel', key: 'h', label: 'Channel', desig: DG.Channel, desc: 'Dig a hole in the floor, leaving a ramp on the level below. Good for moats, wells and pits. Careful: a piece of floor or rock cut off from everything around it caves in, along with whoever is on it.' },
+    { id: 'ramp', key: 'r', label: 'Ramp', desig: DG.Ramp, desc: 'Carve a wall into a ramp up to the level above.' },
+    { id: 'chop', key: 't', label: 'Chop trees', desig: DG.Chop, desc: 'Fell trees for logs (needs an axe).' },
+    { id: 'gather', key: 'p', label: 'Gather plants', desig: DG.Gather, desc: 'Pick wild shrubs: berries to eat and brew.' },
+    { id: 'smooth', key: 'v', label: 'Smooth', desig: DG.Smooth, desc: 'Smooth natural stone walls and floors. Nicer rooms make happier dwarves.' },
+    { id: 'engrave', key: 'g', label: 'Engrave', desig: DG.Engrave, desc: 'Engrave smoothed stone. Dwarves admire engravings.' },
+    { id: 'unbuild', key: 'n', label: 'Remove construction', desig: DG.Remove, desc: 'Tear down constructed walls, floors, stairs and ramps.' },
+    { id: 'cancel', key: 'x', label: 'Cancel orders', erase: 'desig', desc: 'Erase designations in the rectangle.' },
   ],
   Zones: [
     { id: 'z_stockpile', label: 'Stockpile', zone: 'stockpile', desc: 'Haulers bring loose items here. Click a stockpile afterwards to choose what it accepts.' },
@@ -334,6 +336,12 @@ window.addEventListener('keydown', (e) => {
   if (!g || (e.target as HTMLElement).tagName === 'INPUT') return;
   const k = e.key.toLowerCase();
   keys.add(k);
+  // inside a menu its letters pick tools first, so T means Chop there rather than Trade
+  const hot = cat && !e.metaKey && !e.ctrlKey ? TOOLS[cat].find((t) => t.key === k) : undefined;
+  if (hot) {
+    act('tool', hot.id);
+    return;
+  }
   if (k === ' ') {
     speed = speed ? 0 : 1;
     e.preventDefault();
@@ -348,7 +356,8 @@ window.addEventListener('keydown', (e) => {
       linking = 0;
     } else if (cat) cat = '';
     else deselect();
-  } else if (k === 'r') act('draft', '');
+  } else if (k === 'o') act('cat', 'Orders');
+  else if (k === 'r') act('draft', '');
   else if (k === 'b') act('alarm', '');
   else if (k === 'l') modal = modal === 'labors' ? '' : 'labors';
   else if (k === 'k') modal = modal === 'stocks' ? '' : 'stocks';
@@ -599,8 +608,8 @@ function ui() {
   // toolbar
   const cats = Object.keys(TOOLS);
   set('toolbar', `<div class="desc">${tool ? `<b class="amber">${esc(tool.label)}</b> — ${esc(tool.desc)} <span class="sub">(right-click or Esc to stop)</span>` : linking ? 'Click the bridge, floodgate, door, gear assembly or spikes this should operate.' : ''}</div>
-    <div class="tools">${cat ? TOOLS[cat].map((t) => b(t.label, 'tool', t.id, tool?.id === t.id, esc(t.desc))).join('') : ''}</div>
-    <div class="cats">${cats.map((c) => b(c, 'cat', c, cat === c)).join('')}</div>`);
+    <div class="tools">${cat ? TOOLS[cat].map((t) => b(t.key ? `${t.label} <kbd>${t.key.toUpperCase()}</kbd>` : t.label, 'tool', t.id, tool?.id === t.id, esc(t.desc))).join('') : ''}</div>
+    <div class="cats">${cats.map((c) => b(c === 'Orders' ? 'Orders <kbd>O</kbd>' : c, 'cat', c, cat === c)).join('')}</div>`);
 
   const m = $('modal');
   m.style.display = modal ? 'flex' : 'none';
