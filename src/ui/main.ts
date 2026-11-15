@@ -68,8 +68,22 @@ const TOOLS: Record<string, Tool[]> = {
     { id: 'z_remove', label: 'Remove zone', erase: 'zone', desc: 'Remove zone tiles in the rectangle.' },
   ],
 };
+/** keys that open each menu (Orders follows Dwarf Fortress; the rest take a letter the map does not use) */
+const MENU_KEY: Record<string, string> = { Orders: 'o', Zones: 'z', Structure: 'c', Furniture: 'u', Workshops: 'p', Machines: 'n' };
 const MENUS: [string, string][] = [['Structure', 'structure'], ['Furniture', 'furniture'], ['Workshops', 'production'], ['Machines', 'machines']];
 for (const [name, menu] of MENUS) TOOLS[name] = Object.values(BUILDINGS).filter((b) => b.menu === menu).map((b) => ({ id: 'b_' + b.id, label: b.name, build: b.id, desc: `${b.desc} Needs: ${b.needs.map((n) => `${n.n}× ${Array.isArray(n.type) ? (n.type.length > 4 ? 'melee weapon' : n.type.join('/')) : n.type}`).join(' + ')}.` }));
+// every tool without a Dwarf Fortress letter gets a letter of its name, else any free letter, else a digit.
+// WASD and Q/E stay with the camera; inside a menu, other keys (B, T, the speed digits) give way to its tools.
+for (const tools of Object.values(TOOLS)) {
+  const used = new Set(['w', 'a', 's', 'd', 'q', 'e', ...tools.map((t) => t.key).filter(Boolean)]);
+  for (const t of tools) {
+    if (t.key) continue;
+    const name = t.label.toLowerCase();
+    const initials = name.split(/[^a-z]+/).map((w) => w[0]).filter(Boolean);
+    t.key = [...initials, ...name.replace(/[^a-z]/g, ''), ...'bcfghijklmnoprtuvxyz', ...'123456789'].find((c) => !used.has(c));
+    if (t.key) used.add(t.key);
+  }
+}
 /** one-tile buildings that are laid by dragging a line or rectangle */
 const LINES = ['axle', 'fortification', 'weapontrap', 'cagetrap', 'stonetrap', 'spikes'];
 let cat = '';
@@ -356,7 +370,7 @@ window.addEventListener('keydown', (e) => {
       linking = 0;
     } else if (cat) cat = '';
     else deselect();
-  } else if (k === 'o') act('cat', 'Orders');
+  } else if (Object.values(MENU_KEY).includes(k)) act('cat', Object.keys(MENU_KEY).find((c) => MENU_KEY[c] === k)!);
   else if (k === 'r') act('draft', '');
   else if (k === 'b') act('alarm', '');
   else if (k === 'l') modal = modal === 'labors' ? '' : 'labors';
@@ -609,7 +623,7 @@ function ui() {
   const cats = Object.keys(TOOLS);
   set('toolbar', `<div class="desc">${tool ? `<b class="amber">${esc(tool.label)}</b> — ${esc(tool.desc)} <span class="sub">(right-click or Esc to stop)</span>` : linking ? 'Click the bridge, floodgate, door, gear assembly or spikes this should operate.' : ''}</div>
     <div class="tools">${cat ? TOOLS[cat].map((t) => b(t.key ? `${t.label} <kbd>${t.key.toUpperCase()}</kbd>` : t.label, 'tool', t.id, tool?.id === t.id, esc(t.desc))).join('') : ''}</div>
-    <div class="cats">${cats.map((c) => b(c === 'Orders' ? 'Orders <kbd>O</kbd>' : c, 'cat', c, cat === c)).join('')}</div>`);
+    <div class="cats">${cats.map((c) => b(`${c} <kbd>${MENU_KEY[c].toUpperCase()}</kbd>`, 'cat', c, cat === c)).join('')}</div>`);
 
   const m = $('modal');
   m.style.display = modal ? 'flex' : 'none';

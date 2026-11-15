@@ -27,6 +27,7 @@ npm run dev        # http://localhost:5173
 | `Space`, `1` `2` `3` | Pause, speed |
 | `L` `K` `T` `J` `H` `M` | Labors, stocks, trade, legends, help, music |
 | `G` | Switch between drawn tiles and classic ASCII |
+| `O` `Z` `C` `U` `P` `N` | Orders, Zones, Structure, Furniture, Workshops, Machines. Then the letter shown on each button picks a tool |
 | `O`, then a letter | Orders menu, then `M` mine · `I` stairs · `H` channel · `R` ramp · `T` chop · `P` gather · `V` smooth · `G` engrave · `N` remove construction · `X` cancel orders. While the menu is open these letters pick the order instead of their usual job; `Esc` closes it |
 
 Alerts (top left) explain each problem and its fix on hover; clicking jumps there. Raids, cave-ins and
