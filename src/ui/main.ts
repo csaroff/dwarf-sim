@@ -18,6 +18,16 @@ const canvas = $('map') as HTMLCanvasElement;
 const R = new Renderer(canvas);
 const music = $('music') as HTMLAudioElement;
 music.volume = 0.45;
+// your own copy of the Dwarf Fortress theme if it is there (local only: it is not in the repository),
+// otherwise "Lolor" by professorlamp (CC-BY 3.0), which ships with the game
+const BASE = import.meta.env.BASE_URL;
+let playing = false;
+music.src = BASE + 'music/theme.mp3';
+music.addEventListener('error', () => {
+  if (music.src.endsWith('lolor.mp3')) return;
+  music.src = BASE + 'music/lolor.mp3';
+  if (playing) music.play().catch(() => {});
+});
 
 let g: Game;
 let speed = 1; // 0 paused, 1, 2, 3
@@ -409,7 +419,8 @@ function act(a: string, v: string, el?: HTMLElement) {
     case 'modal': modal = modal === v ? '' : (v as typeof modal); break;
     case 'speed': speed = +v; break;
     case 'music':
-      if (music.paused) music.play().catch(() => flash('Music file missing: copy the theme to public/music/theme.mp3'));
+      playing = music.paused;
+      if (playing) music.play().catch(() => {});
       else music.pause();
       break;
     case 'save': save(); break;
@@ -721,6 +732,7 @@ function start(game: Game) {
   const u = g.dwarves()[0];
   if (u) jump(u.x, u.y, u.z);
   else jump(g.embark.x, g.embark.y, g.embark.z);
+  playing = true;
   music.play().catch(() => {});
   speed = 1;
   ui();

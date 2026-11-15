@@ -1,4 +1,5 @@
 node_modules
 dist
-public/music/*.mp3
+# your own copy of the Dwarf Fortress theme stays local; the bundled track (lolor.mp3, CC-BY) is committed
+public/music/theme.mp3
 .pi

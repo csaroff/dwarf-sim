@@ -3,13 +3,19 @@
 A browser colony sim: Dwarf Fortress content (z-levels, mining, booze, caverns, magma, goblins) with
 RimWorld-style control. Every idle dwarf, stalled job and stuck work order says why.
 
+**Play it:** https://csaroff.github.io/dwarf-sim/ (everything runs in the browser; saves stay in it too).
+Every push to `main` is tested and published by [the Pages workflow](.github/workflows/pages.yml).
+
 ## Run
 
 ```bash
 npm install
-cp ~/Downloads/"Dwarf Fortress - Dwarf Fortress Mode theme.mp3" public/music/theme.mp3   # music is not checked in
 npm run dev        # http://localhost:5173
 ```
+
+Music: "[Lolor](https://opengameart.org/content/lolor)" by professorlamp (CC-BY 3.0), written as a tribute to
+Dwarf Fortress. To hear the actual Dwarf Fortress theme locally instead, put your copy at
+`public/music/theme.mp3`; it is gitignored and never published.
 
 `npm test` runs the scenario tests. `npm run test:long` plays five worlds for two game years with a scripted player.
 
